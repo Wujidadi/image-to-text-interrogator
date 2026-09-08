@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-08
+
 ### Added
 
 - Provider type `wavespeed-endpoint` for WaveSpeed model endpoints (`api.wavespeed.ai/api/v3/<model id>`, default `nvidia/nemotron-3-nano-omni/vision`): uploads the image through `/media/uploads`, submits the prediction and polls `/predictions/<id>/result` (`poll_interval`, `timeout` as the total wait); `Provider` gains `_get_json()` and `_put_bytes()`.
@@ -40,7 +42,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `Interrogator` and the `interrogate()` wrapper: preset resolution, the `explicit` switch, output cleanup (reasoning blocks, code fences, prompt headings, wrapping quotes, single-paragraph merge) and text-level refusal detection.
 - The `image-interrogator` CLI: one image (or `-` for stdin), preset, instruction, `--explicit`, provider selection and overrides, `--show-system`, `--timing`, `--list-presets`, `--list-providers`.
 
-[Unreleased]: https://github.com/Wujidadi/image-to-text-interrogator/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Wujidadi/image-to-text-interrogator/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Wujidadi/image-to-text-interrogator/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Wujidadi/image-to-text-interrogator/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Wujidadi/image-to-text-interrogator/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Wujidadi/image-to-text-interrogator/releases/tag/v0.1.0
