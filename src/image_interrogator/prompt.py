@@ -2,8 +2,12 @@
 
 FIXED_LANGUAGE_PRAGMA = "# image-interrogator:fixed-language"
 
+# Chinese deliberately means Simplified: Chinese-capable image models are
+# trained mostly on Simplified corpora, so it prompts better
 LANGUAGE_DIRECTIVES = {
     "en": "Write the final prompt in English.",
+    "zh": "The final prompt MUST be written entirely in Simplified Chinese "
+          "(简体中文); never use Traditional Chinese characters.",
 }
 DEFAULT_LANGUAGE = "en"
 

@@ -125,3 +125,9 @@ def test_size_warning_printed(isolated_config, provider, tmp_path, capsys):
     path.write_bytes(png_bytes_padded(SIZE_WARNING_BYTES + 1))
     main(["-q", str(path)])
     assert "5 MB" in capsys.readouterr().err
+
+
+def test_language_zh(isolated_config, monkeypatch, fake, png_file, capsys):
+    monkeypatch.setattr("image_interrogator.create_provider", lambda s: fake("一隻橘貓"))
+    main(["-q", "-l", "zh", str(png_file)])
+    assert capsys.readouterr().out == "一只橘猫\n"

@@ -54,3 +54,9 @@ def test_is_refusal(text):
 def test_is_not_refusal():
     assert not is_refusal("A warrior raising a bloodied axe, seen from behind.")
     assert not is_refusal("A sign reading \"I can't help falling in love\" on a wall, " * 5)
+
+
+def test_to_simplified():
+    from image_interrogator.postprocess import to_simplified
+    assert to_simplified("一隻橘貓在窗臺上睡覺") == "一只橘猫在窗台上睡觉"
+    assert to_simplified("plain ascii") == "plain ascii"

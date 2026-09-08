@@ -1,6 +1,10 @@
 """Cleanup of raw model output"""
 
 import re
+from pathlib import Path
+
+T2S_MAP_PATH = Path(__file__).parent / "data" / "t2s.txt"
+_t2s_table = None
 
 _THINK = re.compile(r"<think>.*?(</think>|\Z)", re.DOTALL)
 _FENCE = re.compile(r"```[^\n]*\n(.*?)```", re.DOTALL)
@@ -75,3 +79,15 @@ def is_refusal(text):
     """A short reply that opens with "I cannot / I can't / I'm unable"
     is a policy refusal rather than a description"""
     return len(text) <= _REFUSAL_MAX_LENGTH and bool(_REFUSAL_PATTERNS.match(text.strip()))
+
+
+def to_simplified(text):
+    """Deterministic char-level Traditional-to-Simplified conversion:
+    models ignore the zh directive now and then, and model-side conversion
+    can silently rewrite wording"""
+    global _t2s_table
+    if _t2s_table is None:
+        lines = [l for l in T2S_MAP_PATH.read_text(encoding="utf-8").splitlines()
+                 if l and not l.startswith("#")]
+        _t2s_table = str.maketrans(lines[0], lines[1])
+    return text.translate(_t2s_table)

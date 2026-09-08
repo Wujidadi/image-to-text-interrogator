@@ -40,3 +40,9 @@ def test_build_user():
     assert build_user() == USER_MESSAGE
     assert build_user("/abs/a.png").startswith("Read /abs/a.png")
     assert build_user("/abs/a.png", "U").endswith("then: U")
+
+
+def test_zh_directive_demands_simplified():
+    system = build_system("RULE", False, "zh")
+    assert system.startswith(LANGUAGE_DIRECTIVES["zh"])
+    assert "简体中文" in LANGUAGE_DIRECTIVES["zh"]

@@ -88,3 +88,19 @@ def test_convenience_wrapper(isolated_config, monkeypatch, fake, png_bytes):
     provider = fake("done")
     monkeypatch.setattr("image_interrogator.create_provider", lambda s: provider)
     assert interrogate(png_bytes, instruction="x") == "done"
+
+
+def test_zh_forces_simplified(isolated_config, fake, png_bytes):
+    provider = fake("一隻橘貓")
+    assert Interrogator(provider, language="zh").interrogate(png_bytes) == "一只橘猫"
+    assert provider.calls[0][0].startswith(LANGUAGE_DIRECTIVES["zh"])
+
+
+def test_fixed_language_ignores_zh(isolated_config, fake, tmp_path, png_bytes):
+    (tmp_path / "fixed.txt").write_text("# image-interrogator:fixed-language\nRULE",
+                                        encoding="utf-8")
+    provider = fake("一隻橘貓")
+    result = Interrogator(provider, preset_dirs=[tmp_path]).interrogate(
+        png_bytes, preset="fixed", language="zh")
+    assert result == "一隻橘貓"
+    assert provider.calls[0][0] == "RULE"

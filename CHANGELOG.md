@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Added
 
 - Provider type `claude-code`: runs `claude -p` with the system instruction, the Read tool only and JSON output, hands the image over as a path (bytes go through a temporary file), strips the nested-session variables so it works from inside a Claude Code session, and reports `total_cost_usd` and `modelUsage` on `provider.last_usage`.
+- Output language `zh` (Simplified Chinese), guaranteed by a deterministic char-level Traditional-to-Simplified pass over `data/t2s.txt` (distilled from OpenCC, Apache 2.0).
 
 ## [0.1.0] - 2026-09-08
 

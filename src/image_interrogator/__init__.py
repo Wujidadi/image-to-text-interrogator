@@ -4,7 +4,7 @@ from .config import Config, load_config
 from .errors import (ConfigError, ImageError, ImageInterrogatorError, OverloadedError,
                      PresetNotFoundError, ProviderError, RefusalError)
 from .image import ImageInput, load_image
-from .postprocess import clean_output, is_refusal, single_paragraph
+from .postprocess import clean_output, is_refusal, single_paragraph, to_simplified
 from .presets import DEFAULT_PRESET, Preset, list_presets, load_preset
 from .prompt import DEFAULT_LANGUAGE, LANGUAGE_DIRECTIVES, build_system, build_user
 from .providers import Provider, create_provider
@@ -58,13 +58,16 @@ class Interrogator:
         a binary stream or an ImageInput). Raises ImageInterrogatorError
         subclasses"""
         image = load_image(image)
-        system, _ = self.prepare(preset, instruction, language, explicit)
+        language = language or self.language
+        system, fixed = self.prepare(preset, instruction, language, explicit)
         raw = self.provider.complete(system, build_user(), image)
         result = clean_output(raw or "", paragraph=True)
         if not result:
             raise ProviderError(f"{self.provider.describe()}: empty response")
         if is_refusal(result):
             raise RefusalError(f"{self.provider.describe()}: refused: {result}")
+        if language == "zh" and not fixed:
+            result = to_simplified(result)
         return result
 
 
@@ -81,7 +84,7 @@ __all__ = [
     "Interrogator", "interrogate", "Config", "load_config", "ImageInput", "load_image",
     "Provider", "create_provider", "Preset", "list_presets", "load_preset",
     "DEFAULT_PRESET", "DEFAULT_LANGUAGE", "LANGUAGE_DIRECTIVES", "build_system",
-    "build_user", "clean_output", "single_paragraph", "is_refusal",
+    "build_user", "clean_output", "single_paragraph", "is_refusal", "to_simplified",
     "ImageInterrogatorError", "ConfigError", "PresetNotFoundError", "ImageError",
     "ProviderError", "RefusalError", "OverloadedError", "__version__",
 ]
