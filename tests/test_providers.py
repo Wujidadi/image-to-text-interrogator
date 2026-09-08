@@ -333,3 +333,33 @@ def test_anthropic_usage(monkeypatch, png_bytes):
                              "usage": {"input_tokens": 1000, "output_tokens": 100}})
     p.complete("S", "U", load_image(png_bytes))
     assert p.last_usage == {"input_tokens": 1000, "output_tokens": 100, "cost_usd": 0.0045}
+
+
+# --- GET and PUT helpers -----------------------------------------------------
+
+def test_get_json(fake, monkeypatch):
+    calls = fake_urlopen(monkeypatch, reply={"ok": 2})
+    assert fake()._get_json("http://h/y", {"A": "b"}) == {"ok": 2}
+    request = calls[0][0]
+    assert request.get_method() == "GET" and request.data is None
+    assert request.get_header("A") == "b"
+
+
+def test_put_bytes(fake, monkeypatch):
+    calls = []
+
+    def urlopen(request, timeout=None):
+        calls.append(request)
+        return _Response(b"")
+
+    monkeypatch.setattr("urllib.request.urlopen", urlopen)
+    fake()._put_bytes("http://h/z", b"\x00\x01", {"Content-Type": "image/png"})
+    request = calls[0]
+    assert request.get_method() == "PUT" and request.data == b"\x00\x01"
+    assert request.get_header("Content-type") == "image/png"
+
+
+def test_put_bytes_http_error(fake, monkeypatch):
+    fake_urlopen(monkeypatch, error=http_error(403, b"denied"))
+    with pytest.raises(ProviderError, match="HTTP 403"):
+        fake()._put_bytes("http://h/z", b"x")

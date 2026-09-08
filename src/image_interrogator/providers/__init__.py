@@ -24,7 +24,8 @@ from .claude_code import ClaudeCodeProvider  # noqa: E402
 from .ollama import OllamaProvider  # noqa: E402
 from .openai_compatible import OpenAICompatibleProvider  # noqa: E402
 from .wavespeed import WaveSpeedProvider  # noqa: E402
+from .wavespeed_endpoint import WaveSpeedEndpointProvider  # noqa: E402
 
 __all__ = ["Provider", "PROVIDER_TYPES", "create_provider", "register",
            "OllamaProvider", "OpenAICompatibleProvider", "WaveSpeedProvider",
-           "AnthropicProvider", "ClaudeCodeProvider"]
+           "AnthropicProvider", "ClaudeCodeProvider", "WaveSpeedEndpointProvider"]

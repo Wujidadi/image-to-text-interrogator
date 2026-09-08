@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- Provider type `wavespeed-endpoint` for WaveSpeed model endpoints (`api.wavespeed.ai/api/v3/<model id>`, default `nvidia/nemotron-3-nano-omni/vision`): uploads the image through `/media/uploads`, submits the prediction and polls `/predictions/<id>/result` (`poll_interval`, `timeout` as the total wait); `Provider` gains `_get_json()` and `_put_bytes()`.
+
 ## [0.3.0] - 2026-09-08
 
 ### Added

@@ -90,9 +90,30 @@ class Provider:
         request = urllib.request.Request(
             url, data=body,
             headers={"Content-Type": "application/json", **(headers or {})})
+        return self._decode(url, self._open(request))
+
+    def _get_json(self, url, headers=None):
+        request = urllib.request.Request(url, headers=headers or {}, method="GET")
+        return self._decode(url, self._open(request))
+
+    def _put_bytes(self, url, data, headers=None):
+        """Raw PUT, e.g. to a signed upload URL; the reply body is ignored"""
+        request = urllib.request.Request(url, data=data, headers=headers or {}, method="PUT")
+        self._open(request)
+
+    def _decode(self, url, body):
+        try:
+            return json.loads(body)
+        except ValueError as e:
+            raise ProviderError(f"{self.describe()}: request to {url} failed: {e}") from e
+
+    def _open(self, request):
+        """Send one request and return the body bytes; HTTP errors are
+        classified into OverloadedError or ProviderError"""
+        url = request.full_url
         try:
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                return json.load(response)
+                return response.read()
         except urllib.error.HTTPError as e:
             detail = e.read().decode("utf-8", "replace").strip()
             message = (f"{self.describe()}: HTTP {e.code} from {url}"
@@ -100,5 +121,5 @@ class Provider:
             if e.code in OVERLOADED_STATUSES:
                 raise OverloadedError(message) from e
             raise ProviderError(message) from e
-        except (OSError, ValueError) as e:
+        except OSError as e:
             raise ProviderError(f"{self.describe()}: request to {url} failed: {e}") from e
