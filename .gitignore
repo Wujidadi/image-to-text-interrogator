@@ -1,0 +1,41 @@
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+
+# Virtual environments & env files
+.venv/
+venv/
+env/
+.env
+
+# VS Code & IDEs
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+
+# Images used for manual checks
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+
+# Local config (symlinked from ~/.config/image-interrogator/)
+config.toml
+
+# Pre-development planning document, kept out of the repository
+PLAN.md
