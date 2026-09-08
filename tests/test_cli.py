@@ -350,3 +350,59 @@ def test_no_negative_no_extra_output(isolated_config, provider, png_file, capsys
     main(["-q", "--sidecar", "--json", str(png_file)])
     assert not png_file.with_suffix(".negative.txt").exists()
     assert "negative" not in json.loads(capsys.readouterr().out)[0]
+
+
+# --- compare mode ------------------------------------------------------------
+
+def test_compare_runs_every_profile(isolated_config, monkeypatch, fake, png_file, capsys):
+    write_fallback_config(isolated_config)
+    install_providers(monkeypatch, fake, {"a": "from a", "b": "from b", "c": "from c"})
+    main(["-q", "--compare", "b", "--compare", "c", str(png_file)])
+    out = capsys.readouterr().out
+    assert out == ("# fake a\nfrom a\n\n# fake b\nfrom b\n\n# fake c\nfrom c\n")
+
+
+def test_compare_json_and_failures(isolated_config, monkeypatch, fake, png_file, capsys):
+    import json
+    from image_interrogator import RefusalError
+    write_fallback_config(isolated_config)
+    install_providers(monkeypatch, fake, {"a": "from a", "b": RefusalError("b refused")})
+    with pytest.raises(SystemExit) as e:
+        main(["-q", "--json", "--compare", "b", str(png_file)])
+    assert e.value.code == 1
+    out, err = capsys.readouterr()
+    records = json.loads(out)
+    assert [r.get("prompt") for r in records] == ["from a", None]
+    assert records[1]["error"] == "b refused" and records[1]["profile"] == "b"
+    assert records[0]["profile"] == "a"
+    assert "fake b: b refused" in err or "b refused" in err
+
+
+def test_compare_disables_fallbacks_and_names_unknown_profiles(isolated_config, monkeypatch,
+                                                               fake, png_file, capsys):
+    from image_interrogator import RefusalError
+    write_fallback_config(isolated_config)
+    install_providers(monkeypatch, fake, {"a": RefusalError("no"), "b": "from b"})
+    with pytest.raises(SystemExit):
+        main(["-q", "--compare", "b", str(png_file)])
+    assert "falling back" not in capsys.readouterr().err
+    with pytest.raises(SystemExit) as e:
+        main(["-q", "--compare", "nope", str(png_file)])
+    assert e.value.code == 1 and "unknown provider profile" in capsys.readouterr().err
+
+
+def test_compare_with_several_images(isolated_config, monkeypatch, fake, two_images, capsys):
+    write_fallback_config(isolated_config)
+    install_providers(monkeypatch, fake, {"a": "from a", "b": "from b"})
+    a, b = two_images
+    main(["-q", "--compare", "b", str(a), str(b)])
+    out = capsys.readouterr().out
+    assert out.count("# fake a") == 2 and out.count(f"# {a.resolve()}") == 1
+
+
+def test_compare_sidecar_uses_profile_suffix(isolated_config, monkeypatch, fake, png_file, capsys):
+    write_fallback_config(isolated_config)
+    install_providers(monkeypatch, fake, {"a": "from a", "b": "from b"})
+    main(["-q", "--sidecar", "--compare", "b", str(png_file)])
+    assert png_file.with_suffix(".a.txt").read_text(encoding="utf-8") == "from a\n"
+    assert png_file.with_suffix(".b.txt").read_text(encoding="utf-8") == "from b\n"

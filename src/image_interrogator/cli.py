@@ -54,6 +54,9 @@ def build_parser():
                              "fallbacks list")
     parser.add_argument("--no-fallback", action="store_true",
                         help="never fall back to another profile")
+    parser.add_argument("--compare", metavar="<name>", action="append",
+                        help="also run every image through this profile (repeatable) and "
+                             "show the results side by side; fallbacks are disabled")
     parser.add_argument("--max-side", type=int, metavar="<px>",
                         help="scale the image down so its longer side is at most <px> "
                              "before sending it (needs the Pillow extra); overrides the "
@@ -117,17 +120,21 @@ def read_image(value):
     return load_image(value)
 
 
-def output_path(image, args):
-    name = image.path.with_suffix(".txt").name
+def output_path(image, args, profile=None):
+    suffix = f".{profile}.txt" if profile else ".txt"
+    name = image.path.with_suffix(suffix).name
     if args.output_dir:
         return Path(args.output_dir).expanduser() / name
     return image.path.with_name(name)
 
 
-def process(value, interrogator, args):
-    """Interrogate one image; returns the JSON-shaped record"""
+def process(value, interrogator, args, profile=None):
+    """Interrogate one image; returns the JSON-shaped record. `profile`
+    is set in compare mode and names the sidecar and the record"""
     record = {"image": value if value == "-" else str(Path(value).expanduser().resolve()),
               "preset": args.preset, "provider": interrogator.provider.describe()}
+    if profile:
+        record["profile"] = profile
     image = read_image(value)
     for warning in image.warnings:
         print(f"{PROG}: warning: {warning}", file=sys.stderr)
@@ -154,7 +161,7 @@ def process(value, interrogator, args):
         print(f"{PROG}: elapsed {result.elapsed:.1f}s ({result.provider.describe()})",
               file=sys.stderr)
     if args.sidecar or args.output_dir:
-        target = output_path(image, args)
+        target = output_path(image, args, profile)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(record["prompt"] + "\n", encoding="utf-8")
         record["output"] = str(target)
@@ -167,15 +174,17 @@ def process(value, interrogator, args):
     return record
 
 
-def emit(record, args, first):
-    """Plain stdout output; several images get a "# <path>" header each
-    and a blank line between them"""
+def emit(record, args, first, compare=False):
+    """Plain stdout output; several images get a "# <path>" header each,
+    compare mode a "# <provider>" header per result, blank lines between"""
     if args.sidecar or args.output_dir or args.json:
         return
-    if len(args.images) > 1:
-        if not first:
-            print()
+    if not first:
+        print()
+    if len(args.images) > 1 and not compare:
         print(f"# {record['image']}")
+    if compare:
+        print(f"# {record['provider']}")
     print(record["prompt"])
     if record.get("negative"):
         print(f"\nNegative: {record['negative']}")
@@ -192,7 +201,8 @@ def main(argv=None):
     overrides = {k: v for k, v in
                  (("type", args.type), ("model", args.model), ("url", args.url))
                  if v is not None}
-    fallbacks = [] if args.no_fallback else args.fallback
+    compare = args.compare or []
+    fallbacks = [] if args.no_fallback or compare else args.fallback
 
     def on_fallback(error, next_provider):
         print(f"{PROG}: {error}; falling back to {next_provider.describe()}", file=sys.stderr)
@@ -208,23 +218,39 @@ def main(argv=None):
             system, _ = interrogator.prepare(args.preset, args.instruction,
                                              args.language, args.explicit)
             print(system, file=sys.stderr)
+        runs = [(interrogator.provider.name, interrogator)]
+        for name in compare:
+            runs.append((name, Interrogator.from_config(
+                name, language=args.language, preset_dirs=args.preset_dir,
+                config_path=args.config, fallbacks=[], max_side=args.max_side)))
     except ImageInterrogatorError as e:
         die(str(e))
-    records, failures = [], []
+    records, failures, printed = [], [], 0
     for value in args.images:
-        try:
-            record = process(value, interrogator, args)
-            emit(record, args, first=not any("prompt" in r for r in records))
-            records.append(record)
-        except ImageInterrogatorError as e:
-            failures.append(value)
-            records.append({"image": value, "error": str(e)})
-            prefix = f"{value}: " if len(args.images) > 1 and value not in str(e) else ""
-            print(f"{PROG}: {prefix}{e}", file=sys.stderr)
+        if compare and len(args.images) > 1 and not (args.json or args.sidecar or args.output_dir):
+            print(f"{chr(10) if printed else ''}# {Path(value).expanduser().resolve()}")
+            printed += 1
+        for name, interrogator in runs:
+            try:
+                record = process(value, interrogator, args, name if compare else None)
+                emit(record, args, first=printed == 0, compare=bool(compare))
+                printed += 1
+                records.append(record)
+            except ImageInterrogatorError as e:
+                failures.append(value)
+                record = {"image": value, "error": str(e)}
+                if compare:
+                    record["profile"] = name
+                records.append(record)
+                prefix = f"{value}: " if len(args.images) > 1 and value not in str(e) else ""
+                where = f" [{name}]" if compare else ""
+                print(f"{PROG}: {prefix}{e}{where}", file=sys.stderr)
     if args.json:
         print(json.dumps(records, ensure_ascii=False, indent=2))
     if failures:
-        if len(args.images) > 1:
+        if compare:
+            print(f"{PROG}: {len(failures)} of {len(records)} runs failed", file=sys.stderr)
+        elif len(args.images) > 1:
             print(f"{PROG}: {len(failures)} of {len(args.images)} images failed: "
                   f"{', '.join(failures)}", file=sys.stderr)
         sys.exit(1)
