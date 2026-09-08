@@ -22,12 +22,12 @@ uv tool install --editable .
 # /// script
 # requires-python = ">=3.11"
 # dependencies = [
-#   "image-to-text-interrogator @ git+https://github.com/Wujidadi/image-to-text-interrogator@v0.1.0",
+#   "image-to-text-interrogator @ git+https://github.com/Wujidadi/image-to-text-interrogator@v0.2.0",
 # ]
 # ///
 
 # As a dependency of a project
-uv add "image-to-text-interrogator @ git+https://github.com/Wujidadi/image-to-text-interrogator@v0.1.0"
+uv add "image-to-text-interrogator @ git+https://github.com/Wujidadi/image-to-text-interrogator@v0.2.0"
 ```
 
 Without any configuration, interrogation runs against a local [ollama](https://ollama.com) at `http://localhost:11434` with `qwen3.6:35b`, the most accurate local vision model in the maintainer's evaluation (a 35B mixture-of-experts model, about 22 GB).\
