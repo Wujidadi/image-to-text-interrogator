@@ -40,7 +40,7 @@ def build_parser():
                              "(default: default_provider, else ollama)")
     parser.add_argument("--type", metavar="<type>",
                         help="override the provider type "
-                             "(ollama, openai, wavespeed, anthropic)")
+                             "(ollama, openai, wavespeed, anthropic, claude-code)")
     parser.add_argument("--model", "-m", metavar="<name>",
                         help="override the provider's model")
     parser.add_argument("--url", metavar="<url>",

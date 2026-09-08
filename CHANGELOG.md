@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- Provider type `claude-code`: runs `claude -p` with the system instruction, the Read tool only and JSON output, hands the image over as a path (bytes go through a temporary file), strips the nested-session variables so it works from inside a Claude Code session, and reports `total_cost_usd` and `modelUsage` on `provider.last_usage`.
+
 ## [0.1.0] - 2026-09-08
 
 ### Added

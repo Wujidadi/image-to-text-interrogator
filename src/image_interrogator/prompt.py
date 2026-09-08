@@ -42,9 +42,9 @@ def build_system(rule, fixed_language, language, instruction=None, explicit=Fals
     return system
 
 
-def build_user(image_path=None):
+def build_user(image_path=None, message=USER_MESSAGE):
     """The user turn; backends that read files themselves (Claude Code)
     get the absolute path instead of an attached image"""
     if image_path:
-        return f"Read {image_path} with the Read tool, then: {USER_MESSAGE}"
-    return USER_MESSAGE
+        return f"Read {image_path} with the Read tool, then: {message}"
+    return message

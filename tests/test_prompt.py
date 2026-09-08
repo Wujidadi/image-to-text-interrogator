@@ -39,3 +39,4 @@ def test_split_pragma():
 def test_build_user():
     assert build_user() == USER_MESSAGE
     assert build_user("/abs/a.png").startswith("Read /abs/a.png")
+    assert build_user("/abs/a.png", "U").endswith("then: U")
