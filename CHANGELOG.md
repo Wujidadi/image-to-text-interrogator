@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-08
+
 ### Fixed
 
 - `-l zh` produced English on the `faithful` preset with qwen3.6:35b and gemma4:26b: the language requirement is now repeated as the last line of the system instruction, after the custom instruction, and `LANGUAGE_REMINDERS` is exported.
@@ -47,7 +49,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `Interrogator` and the `interrogate()` wrapper: preset resolution, the `explicit` switch, output cleanup (reasoning blocks, code fences, prompt headings, wrapping quotes, single-paragraph merge) and text-level refusal detection.
 - The `image-interrogator` CLI: one image (or `-` for stdin), preset, instruction, `--explicit`, provider selection and overrides, `--show-system`, `--timing`, `--list-presets`, `--list-providers`.
 
-[Unreleased]: https://github.com/Wujidadi/image-to-text-interrogator/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/Wujidadi/image-to-text-interrogator/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/Wujidadi/image-to-text-interrogator/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/Wujidadi/image-to-text-interrogator/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Wujidadi/image-to-text-interrogator/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Wujidadi/image-to-text-interrogator/compare/v0.1.0...v0.2.0
