@@ -11,6 +11,9 @@ CONFIG_ENV = "IMAGE_INTERROGATOR_CONFIG"
 DEFAULT_CONFIG_DIR = Path("~/.config/image-interrogator")
 PRESET_DIR_NAME = "interrogators"
 BUILTIN_PROVIDER_NAME = "ollama"
+# Profile keys that only make sense for the profile's own type: an override
+# switching the type drops them so the new type's defaults apply
+TYPE_BOUND_KEYS = ("url", "model", "api_key_env")
 BUILTIN_PROVIDERS = {
     BUILTIN_PROVIDER_NAME: {"type": "ollama", "url": "http://localhost:11434",
                             "model": "qwen3.6:35b"},
@@ -45,7 +48,11 @@ class Config:
             raise ConfigError(f"unknown provider profile: {name} "
                               f"(known: {', '.join(sorted(self.providers))})")
         settings = dict(self.providers[name])
-        settings.update(overrides or {})
+        overrides = overrides or {}
+        if overrides.get("type") not in (None, settings.get("type")):
+            for key in TYPE_BOUND_KEYS:
+                settings.pop(key, None)
+        settings.update(overrides)
         settings.setdefault("name", name)
         return settings
 

@@ -108,3 +108,23 @@ def test_provider_defaults(fake):
     assert provider.describe() == "fake fake-model"
     with pytest.raises(NotImplementedError):
         Provider({"model": "m"}).complete("S", "U", None)
+
+
+def test_type_override_drops_profile_specifics(isolated_config):
+    isolated_config.write_text("""
+[providers.p]
+type = "ollama"
+url = "http://localhost:11434"
+model = "qwen3.6:35b"
+api_key_env = "X"
+timeout = 60
+""", encoding="utf-8")
+    config = load_config()
+    settings = config.provider_settings("p", {"type": "wavespeed"})
+    assert settings["type"] == "wavespeed"
+    assert "url" not in settings and "model" not in settings and "api_key_env" not in settings
+    assert settings["timeout"] == 60
+    kept = config.provider_settings("p", {"type": "wavespeed", "model": "m"})
+    assert kept["model"] == "m"
+    same = config.provider_settings("p", {"type": "ollama"})
+    assert same["url"] == "http://localhost:11434"
