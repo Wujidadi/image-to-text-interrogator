@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "image-to-text-interrogator"
-version = "0.2.0"
+version = "0.3.0"
 description = "Vision-LLM-driven image interrogation: turn an image into a faithful, detailed text-to-image prompt, with bundled presets, pluggable providers (ollama, OpenAI-compatible, WaveSpeed, Anthropic, Claude Code), library API and CLI"
 readme = "README.md"
 requires-python = ">=3.11"

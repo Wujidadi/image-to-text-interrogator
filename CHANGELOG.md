@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-08
+
 ### Added
 
 - Fallback chain: `fallbacks` in the config file, `fallbacks=` on `Interrogator.from_config()`, `--fallback` / `--no-fallback` on the CLI; the next profile is tried on `RefusalError` or `OverloadedError` only, and every switch is reported on stderr.
@@ -31,6 +33,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `Interrogator` and the `interrogate()` wrapper: preset resolution, the `explicit` switch, output cleanup (reasoning blocks, code fences, prompt headings, wrapping quotes, single-paragraph merge) and text-level refusal detection.
 - The `image-interrogator` CLI: one image (or `-` for stdin), preset, instruction, `--explicit`, provider selection and overrides, `--show-system`, `--timing`, `--list-presets`, `--list-providers`.
 
-[Unreleased]: https://github.com/Wujidadi/image-to-text-interrogator/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Wujidadi/image-to-text-interrogator/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Wujidadi/image-to-text-interrogator/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Wujidadi/image-to-text-interrogator/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Wujidadi/image-to-text-interrogator/releases/tag/v0.1.0
