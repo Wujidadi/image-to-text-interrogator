@@ -194,3 +194,23 @@ def test_from_config_max_side(isolated_config):
     assert Interrogator.from_config(max_side=512).max_side == 512
     isolated_config.write_text("", encoding="utf-8")
     assert Interrogator.from_config().max_side is None
+
+
+def test_negative_preset_splits_result(isolated_config, fake, png_bytes):
+    provider = fake("PROMPT: a cat,\nsoft light\nNEGATIVE: blurry, 文字")
+    result = Interrogator(provider).interrogate_detailed(png_bytes, preset="faithful-negative")
+    assert result.text == "a cat, soft light" and result.negative == "blurry, 文字"
+
+
+def test_negative_preset_zh(isolated_config, fake, png_bytes):
+    provider = fake("PROMPT: 一隻貓\nNEGATIVE: 模糊")
+    result = Interrogator(provider, language="zh").interrogate_detailed(
+        png_bytes, preset="faithful-negative")
+    assert result.text == "一只猫" and result.negative == "模糊"
+
+
+def test_negative_preset_without_section(isolated_config, fake, png_bytes):
+    provider = fake("a cat")
+    result = Interrogator(provider).interrogate_detailed(png_bytes, preset="faithful-negative")
+    assert result.text == "a cat" and result.negative == ""
+    assert Interrogator(provider).interrogate_detailed(png_bytes).negative is None

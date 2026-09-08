@@ -72,6 +72,28 @@ def normalize_tags(text):
     return ", ".join(items)
 
 
+_NEGATIVE_SPLIT = re.compile(r"^\s*(?:\*\*)?\s*negative(?:\s+prompt)?\s*[:：]\s*(?:\*\*)?\s*",
+                             re.IGNORECASE | re.MULTILINE)
+_PROMPT_HEAD = re.compile(r"^\s*(?:\*\*)?\s*(?:positive\s+)?prompt\s*[:：]\s*(?:\*\*)?\s*",
+                          re.IGNORECASE)
+_NO_NEGATIVE = {"", "none", "none.", "n/a", "-"}
+
+
+def split_negative(text):
+    """Split a "PROMPT: ... NEGATIVE: ..." reply into (prompt, negative),
+    each merged into one paragraph; the negative is empty when absent"""
+    match = _NEGATIVE_SPLIT.search(text)
+    if match:
+        prompt, negative = text[:match.start()], text[match.end():]
+    else:
+        prompt, negative = text, ""
+    prompt = single_paragraph(_PROMPT_HEAD.sub("", prompt, count=1))
+    negative = single_paragraph(negative)
+    if negative.strip().lower() in _NO_NEGATIVE:
+        negative = ""
+    return prompt, negative
+
+
 def clean_output(text, paragraph=False):
     """Strip reasoning blocks, code fences, prompt headings and wrapping
     quotes; optionally collapse the result into a single paragraph"""

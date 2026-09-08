@@ -38,7 +38,7 @@ def test_missing(isolated_config, tmp_path):
 
 
 def test_bundled_names(isolated_config):
-    assert [p.name for p in list_presets()] == ["concise", "faithful", "tags"]
+    assert [p.name for p in list_presets()] == ["concise", "faithful", "faithful-negative", "tags"]
 
 
 def test_bundled_formats(isolated_config):
@@ -53,3 +53,10 @@ def test_unknown_format(isolated_config, tmp_path):
     (tmp_path / "bad.txt").write_text("# image-interrogator:format=xml\nRULE", encoding="utf-8")
     with pytest.raises(PresetNotFoundError, match="unknown format"):
         load_preset("bad", [tmp_path])
+
+
+def test_negative_preset(isolated_config):
+    preset = load_preset("faithful-negative")
+    assert preset.format == "negative" and not preset.fixed_language
+    assert "NEGATIVE:" in preset.rule
+    assert "faithful-negative" in [p.name for p in list_presets()]

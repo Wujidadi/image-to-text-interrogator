@@ -10,7 +10,7 @@ from .prompt import split_pragma
 BUNDLED_DIR = Path(__file__).parent / PRESET_DIR_NAME
 DEFAULT_PRESET = "faithful"
 PRESET_EXT = ".txt"
-FORMATS = ("paragraph", "tags")
+FORMATS = ("paragraph", "tags", "negative")
 
 
 @dataclass(frozen=True)

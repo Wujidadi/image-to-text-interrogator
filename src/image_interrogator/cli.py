@@ -142,6 +142,8 @@ def process(value, interrogator, args):
         if warning.startswith("resized"):
             print(f"{PROG}: {warning}", file=sys.stderr)
     record["prompt"] = result.text
+    if result.negative:
+        record["negative"] = result.negative
     record["provider"] = result.provider.describe()
     record["elapsed"] = result.elapsed
     if result.attempts:
@@ -158,6 +160,10 @@ def process(value, interrogator, args):
         record["output"] = str(target)
         if not args.quiet:
             print(f"{PROG}: wrote {target}", file=sys.stderr)
+        if result.negative:
+            negative_target = target.with_suffix(".negative.txt")
+            negative_target.write_text(result.negative + "\n", encoding="utf-8")
+            record["negative_output"] = str(negative_target)
     return record
 
 
@@ -171,6 +177,8 @@ def emit(record, args, first):
             print()
         print(f"# {record['image']}")
     print(record["prompt"])
+    if record.get("negative"):
+        print(f"\nNegative: {record['negative']}")
 
 
 def main(argv=None):

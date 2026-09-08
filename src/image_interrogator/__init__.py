@@ -7,7 +7,8 @@ from .config import Config, load_config
 from .errors import (ConfigError, ImageError, ImageInterrogatorError, OverloadedError,
                      PresetNotFoundError, ProviderError, RefusalError)
 from .image import ImageInput, load_image, resize_image
-from .postprocess import clean_output, is_refusal, normalize_tags, single_paragraph, to_simplified
+from .postprocess import (clean_output, is_refusal, normalize_tags, single_paragraph,
+                          split_negative, to_simplified)
 from .presets import DEFAULT_PRESET, Preset, list_presets, load_preset
 from .prompt import DEFAULT_LANGUAGE, LANGUAGE_DIRECTIVES, build_system, build_user
 from .providers import Provider, create_provider
@@ -28,6 +29,7 @@ class Result:
     usage: dict | None = None
     attempts: list = field(default_factory=list)
     image: ImageInput | None = None
+    negative: str | None = None
 
     def __str__(self):
         return self.text
@@ -113,7 +115,7 @@ class Interrogator:
         while True:
             provider = remaining.pop(0)
             try:
-                text = self._complete(provider, system, image, loaded, language)
+                text, negative = self._complete(provider, system, image, loaded, language)
             except FALLBACK_ERRORS as e:
                 if not remaining:
                     raise
@@ -123,21 +125,27 @@ class Interrogator:
                 continue
             return Result(text=text, provider=provider,
                           elapsed=round(time.monotonic() - started, 2),
-                          usage=provider.last_usage, attempts=attempts, image=image)
+                          usage=provider.last_usage, attempts=attempts, image=image,
+                          negative=negative)
 
     def _complete(self, provider, system, image, loaded, language):
+        """(prompt, negative) from one provider call; negative is None
+        unless the preset has the negative format"""
         raw = provider.complete(system, build_user(), image)
-        tags = loaded.format == "tags"
-        result = clean_output(raw or "", paragraph=not tags)
+        result = clean_output(raw or "", paragraph=loaded.format == "paragraph")
         if not result:
             raise ProviderError(f"{provider.describe()}: empty response")
         if is_refusal(result):
             raise RefusalError(f"{provider.describe()}: refused: {result}")
-        if tags:
+        negative = None
+        if loaded.format == "tags":
             result = normalize_tags(result)
+        elif loaded.format == "negative":
+            result, negative = split_negative(result)
         if language == "zh" and not loaded.fixed_language:
             result = to_simplified(result)
-        return result
+            negative = to_simplified(negative) if negative else negative
+        return result, negative
 
 
 def interrogate(image, *, preset=None, instruction=None, language=None, explicit=False,
@@ -153,7 +161,7 @@ __all__ = [
     "Interrogator", "Result", "FALLBACK_ERRORS", "interrogate", "Config", "load_config", "ImageInput", "load_image", "resize_image",
     "Provider", "create_provider", "Preset", "list_presets", "load_preset",
     "DEFAULT_PRESET", "DEFAULT_LANGUAGE", "LANGUAGE_DIRECTIVES", "build_system",
-    "build_user", "clean_output", "single_paragraph", "is_refusal", "normalize_tags", "to_simplified",
+    "build_user", "clean_output", "single_paragraph", "is_refusal", "normalize_tags", "split_negative", "to_simplified",
     "ImageInterrogatorError", "ConfigError", "PresetNotFoundError", "ImageError",
     "ProviderError", "RefusalError", "OverloadedError", "__version__",
 ]

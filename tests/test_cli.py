@@ -320,3 +320,33 @@ def test_max_side_flag(isolated_config, provider, tmp_path, capsys):
     main(["--max-side", "10", str(path)])
     assert "resized" in capsys.readouterr().err
     assert len(provider.calls[0][2].data) < len(path.read_bytes())
+
+
+# --- negative prompts --------------------------------------------------------
+
+@pytest.fixture
+def negative_provider(monkeypatch, fake):
+    instance = fake("PROMPT: a cat\nNEGATIVE: blurry")
+    monkeypatch.setattr("image_interrogator.create_provider", lambda s: instance)
+    return instance
+
+
+def test_negative_on_stdout(isolated_config, negative_provider, png_file, capsys):
+    main(["-q", "-p", "faithful-negative", str(png_file)])
+    assert capsys.readouterr().out == "a cat\n\nNegative: blurry\n"
+
+
+def test_negative_sidecar_and_json(isolated_config, negative_provider, png_file, capsys):
+    import json
+    main(["-q", "--sidecar", "--json", "-p", "faithful-negative", str(png_file)])
+    assert png_file.with_suffix(".txt").read_text(encoding="utf-8") == "a cat\n"
+    assert png_file.with_suffix(".negative.txt").read_text(encoding="utf-8") == "blurry\n"
+    record = json.loads(capsys.readouterr().out)[0]
+    assert record["negative"] == "blurry" and record["negative_output"].endswith(".negative.txt")
+
+
+def test_no_negative_no_extra_output(isolated_config, provider, png_file, capsys):
+    import json
+    main(["-q", "--sidecar", "--json", str(png_file)])
+    assert not png_file.with_suffix(".negative.txt").exists()
+    assert "negative" not in json.loads(capsys.readouterr().out)[0]

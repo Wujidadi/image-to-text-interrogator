@@ -69,3 +69,13 @@ def test_normalize_tags():
     assert normalize_tags("1girl,  solo ,\nred hair, red hair, ,") == "1girl, solo, red hair"
     assert normalize_tags("- 1girl\n- solo") == "1girl, solo"
     assert normalize_tags("1girl, solo.") == "1girl, solo"
+
+
+def test_split_negative():
+    from image_interrogator.postprocess import split_negative
+    assert split_negative("PROMPT: a cat\nNEGATIVE: blurry, text") == ("a cat", "blurry, text")
+    assert split_negative("Prompt:\na cat,\nsoft light\n\nNegative prompt:\nblurry") == \
+        ("a cat, soft light", "blurry")
+    assert split_negative("**PROMPT:** a cat\n**NEGATIVE:** none") == ("a cat", "")
+    assert split_negative("a cat") == ("a cat", "")
+    assert split_negative("PROMPT: a cat") == ("a cat", "")

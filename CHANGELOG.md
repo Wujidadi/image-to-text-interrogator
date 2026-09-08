@@ -9,6 +9,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - Provider type `wavespeed-endpoint` for WaveSpeed model endpoints (`api.wavespeed.ai/api/v3/<model id>`, default `nvidia/nemotron-3-nano-omni/vision`): uploads the image through `/media/uploads`, submits the prediction and polls `/predictions/<id>/result` (`poll_interval`, `timeout` as the total wait); `Provider` gains `_get_json()` and `_put_bytes()`.
 - Optional downscaling before the call: `max_side` in the config file or on `Interrogator`, `--max-side` on the CLI, through the `resize` extra (`image-to-text-interrogator[resize]`, Pillow); `Result.image` carries the image actually sent.
+- Preset `faithful-negative` and the `format=negative` pragma: the model answers with `PROMPT:` and `NEGATIVE:` sections, split into `Result.negative`; the CLI prints `Negative: ...` after the prompt, writes `<image>.negative.txt` alongside a sidecar, and adds `negative` to `--json`.
 
 ## [0.3.0] - 2026-09-08
 
