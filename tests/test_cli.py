@@ -252,3 +252,62 @@ def test_failure_first_then_success_plain(isolated_config, provider, two_images,
     with pytest.raises(SystemExit):
         main(["-q", str(tmp_path / "missing.png"), str(a)])
     assert capsys.readouterr().out == f"# {a.resolve()}\na cat\n"
+
+
+# --- fallbacks ---------------------------------------------------------------
+
+def write_fallback_config(path):
+    path.write_text("""
+default_provider = "a"
+fallbacks = ["b"]
+[providers.a]
+type = "openai"
+model = "a"
+[providers.b]
+type = "openai"
+model = "b"
+[providers.c]
+type = "openai"
+model = "c"
+""", encoding="utf-8")
+
+
+def install_providers(monkeypatch, fake, replies):
+    from image_interrogator import RefusalError
+
+    def create(settings):
+        reply = replies[settings["model"]]
+        instance = fake(reply, settings=settings)
+        return instance
+
+    monkeypatch.setattr("image_interrogator.create_provider", create)
+
+
+def test_cli_fallback_from_config(isolated_config, monkeypatch, fake, png_file, capsys):
+    from image_interrogator import RefusalError
+    write_fallback_config(isolated_config)
+    install_providers(monkeypatch, fake, {"a": RefusalError("a refused"), "b": "from b"})
+    main(["--json", str(png_file)])
+    out, err = capsys.readouterr()
+    import json
+    record = json.loads(out)[0]
+    assert record["prompt"] == "from b" and record["provider"] == "fake b"
+    assert record["attempts"] == ["a refused"]
+    assert "falling back" in err and "fake b" in err
+
+
+def test_cli_fallback_flag_overrides(isolated_config, monkeypatch, fake, png_file, capsys):
+    from image_interrogator import RefusalError
+    write_fallback_config(isolated_config)
+    install_providers(monkeypatch, fake, {"a": RefusalError("no"), "b": "from b", "c": "from c"})
+    main(["-q", "--fallback", "c", str(png_file)])
+    assert capsys.readouterr().out == "from c\n"
+
+
+def test_cli_no_fallback(isolated_config, monkeypatch, fake, png_file, capsys):
+    from image_interrogator import RefusalError
+    write_fallback_config(isolated_config)
+    install_providers(monkeypatch, fake, {"a": RefusalError("a refused"), "b": "from b"})
+    with pytest.raises(SystemExit) as e:
+        main(["-q", "--no-fallback", str(png_file)])
+    assert e.value.code == 1 and "a refused" in capsys.readouterr().err

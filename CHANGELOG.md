@@ -5,6 +5,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- Fallback chain: `fallbacks` in the config file, `fallbacks=` on `Interrogator.from_config()`, `--fallback` / `--no-fallback` on the CLI; the next profile is tried on `RefusalError` or `OverloadedError` only, and every switch is reported on stderr.
+- HTTP 429 / 503 / 529 are retried with 1 s then 2 s backoff (`retries`, default 2) before `OverloadedError` is raised; the Claude Code route is never retried.
+- `Interrogator.interrogate_detailed()` returns a `Result` with the answering provider, elapsed time, usage report and the errors of the providers tried before it; `--json` and `--timing` show them.
+- Usage reports on every provider (`provider.last_usage`): token counts and speed from ollama, `usage` from Chat Completions and Anthropic, plus `cost_usd` when the profile carries a `price` table (USD per million input and output tokens).
+
 ## [0.2.0] - 2026-09-08
 
 ### Added

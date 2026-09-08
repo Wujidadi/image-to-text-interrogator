@@ -1,7 +1,6 @@
 import argparse
 import json
 import sys
-import time
 from pathlib import Path
 
 from . import (DEFAULT_PRESET, ImageInterrogatorError, Interrogator, __version__,
@@ -49,6 +48,12 @@ def build_parser():
                         help="override the provider's model")
     parser.add_argument("--url", metavar="<url>",
                         help="override the provider's endpoint URL")
+    parser.add_argument("--fallback", metavar="<name>", action="append",
+                        help="provider profile tried next when the previous one refuses "
+                             "or is overloaded (repeatable); overrides the config file's "
+                             "fallbacks list")
+    parser.add_argument("--no-fallback", action="store_true",
+                        help="never fall back to another profile")
     parser.add_argument("--preset-dir", metavar="<dir>", action="append", default=[],
                         help="extra preset directory searched first (repeatable)")
     parser.add_argument("--config", metavar="<file>",
@@ -119,7 +124,6 @@ def process(value, interrogator, args):
     """Interrogate one image; returns the JSON-shaped record"""
     record = {"image": value if value == "-" else str(Path(value).expanduser().resolve()),
               "preset": args.preset, "provider": interrogator.provider.describe()}
-    started = time.monotonic()
     image = read_image(value)
     for warning in image.warnings:
         print(f"{PROG}: warning: {warning}", file=sys.stderr)
@@ -127,15 +131,19 @@ def process(value, interrogator, args):
         print(f"{PROG}: interrogating {image.describe()} "
               f"({interrogator.provider.describe()}, preset {args.preset})...",
               file=sys.stderr)
-    record["prompt"] = interrogator.interrogate(
+    result = interrogator.interrogate_detailed(
         image, preset=args.preset, instruction=args.instruction,
         language=args.language, explicit=args.explicit)
-    record["elapsed"] = round(time.monotonic() - started, 2)
-    usage = getattr(interrogator.provider, "last_usage", None)
-    if usage:
-        record["usage"] = usage
+    record["prompt"] = result.text
+    record["provider"] = result.provider.describe()
+    record["elapsed"] = result.elapsed
+    if result.attempts:
+        record["attempts"] = [str(e) for e in result.attempts]
+    if result.usage:
+        record["usage"] = result.usage
     if args.timing:
-        print(f"{PROG}: elapsed {record['elapsed']:.1f}s", file=sys.stderr)
+        print(f"{PROG}: elapsed {result.elapsed:.1f}s ({result.provider.describe()})",
+              file=sys.stderr)
     if args.sidecar or args.output_dir:
         target = output_path(image, args)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -169,11 +177,17 @@ def main(argv=None):
     overrides = {k: v for k, v in
                  (("type", args.type), ("model", args.model), ("url", args.url))
                  if v is not None}
+    fallbacks = [] if args.no_fallback else args.fallback
+
+    def on_fallback(error, next_provider):
+        print(f"{PROG}: {error}; falling back to {next_provider.describe()}", file=sys.stderr)
+
     try:
         interrogator = Interrogator.from_config(args.provider, overrides,
                                                 language=args.language,
                                                 preset_dirs=args.preset_dir,
-                                                config_path=args.config)
+                                                config_path=args.config,
+                                                fallbacks=fallbacks, on_fallback=on_fallback)
         if args.show_system:
             system, _ = interrogator.prepare(args.preset, args.instruction,
                                              args.language, args.explicit)

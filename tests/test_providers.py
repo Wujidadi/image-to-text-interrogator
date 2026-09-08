@@ -74,7 +74,7 @@ def test_post_json_http_error_without_body(fake, monkeypatch):
 def test_post_json_overloaded(fake, monkeypatch, code):
     fake_urlopen(monkeypatch, error=http_error(code, b"overloaded"))
     with pytest.raises(OverloadedError, match=f"HTTP {code}"):
-        fake()._post_json("http://h/x", {})
+        fake(settings={"retries": 0})._post_json("http://h/x", {})
 
 
 def test_post_json_network_error(fake, monkeypatch):
@@ -248,3 +248,88 @@ def test_anthropic_without_key(monkeypatch, png_bytes):
     calls = capture(monkeypatch, p, {"content": [{"type": "text", "text": "out"}]})
     assert p.complete("S", "U", load_image(png_bytes)) == "out"
     assert "x-api-key" not in calls[0][2]
+
+
+# --- retries and usage -------------------------------------------------------
+
+def test_retry_on_overload(fake, monkeypatch):
+    attempts = []
+    sleeps = []
+
+    def urlopen(request, timeout=None):
+        attempts.append(1)
+        if len(attempts) < 3:
+            raise http_error(529, b"overloaded")
+        return _Response(b'{"ok": 1}')
+
+    monkeypatch.setattr("urllib.request.urlopen", urlopen)
+    monkeypatch.setattr("time.sleep", sleeps.append)
+    assert fake()._post_json("http://h/x", {}) == {"ok": 1}
+    assert len(attempts) == 3 and sleeps == [1, 2]
+
+
+def test_retry_exhausted(fake, monkeypatch):
+    fake_urlopen(monkeypatch, error=http_error(429, b"slow down"))
+    monkeypatch.setattr("time.sleep", lambda s: None)
+    with pytest.raises(OverloadedError, match="HTTP 429"):
+        fake(settings={"retries": 1})._post_json("http://h/x", {})
+
+
+def test_no_retry_on_other_errors(fake, monkeypatch):
+    calls = fake_urlopen(monkeypatch, error=http_error(500))
+    monkeypatch.setattr("time.sleep", lambda s: (_ for _ in ()).throw(AssertionError("slept")))
+    with pytest.raises(ProviderError):
+        fake()._post_json("http://h/x", {})
+    assert len(calls) == 1
+
+
+def test_retries_zero(fake, monkeypatch):
+    calls = fake_urlopen(monkeypatch, error=http_error(529))
+    with pytest.raises(OverloadedError):
+        fake(settings={"retries": 0})._post_json("http://h/x", {})
+    assert len(calls) == 1
+
+
+def test_openai_usage_and_cost(monkeypatch, png_bytes):
+    from image_interrogator import load_image
+    p = create_provider({"type": "openai", "model": "m",
+                         "price": {"input": 0.30, "output": 1.20}})
+    capture(monkeypatch, p, {"choices": [{"message": {"content": "out"}}],
+                             "usage": {"prompt_tokens": 1000, "completion_tokens": 500}})
+    p.complete("S", "U", load_image(png_bytes))
+    assert p.last_usage == {"prompt_tokens": 1000, "completion_tokens": 500,
+                            "cost_usd": 0.0009}
+
+
+def test_openai_usage_without_price(monkeypatch, png_bytes):
+    from image_interrogator import load_image
+    p = create_provider({"type": "openai", "model": "m"})
+    capture(monkeypatch, p, {"choices": [{"message": {"content": "out"}}],
+                             "usage": {"prompt_tokens": 1}})
+    p.complete("S", "U", load_image(png_bytes))
+    assert p.last_usage == {"prompt_tokens": 1}
+    capture(monkeypatch, p, {"choices": [{"message": {"content": "out"}}]})
+    p.complete("S", "U", load_image(png_bytes))
+    assert p.last_usage is None
+
+
+def test_ollama_usage(monkeypatch, png_bytes):
+    from image_interrogator import load_image
+    p = create_provider({"type": "ollama"})
+    capture(monkeypatch, p, {"message": {"content": "out"}, "prompt_eval_count": 900,
+                             "eval_count": 300, "eval_duration": 5_000_000_000,
+                             "load_duration": 1})
+    p.complete("S", "U", load_image(png_bytes))
+    assert p.last_usage == {"prompt_eval_count": 900, "eval_count": 300,
+                            "eval_duration": 5_000_000_000, "load_duration": 1,
+                            "tokens_per_second": 60.0}
+
+
+def test_anthropic_usage(monkeypatch, png_bytes):
+    from image_interrogator import load_image
+    p = create_provider({"type": "anthropic", "api_key": "k",
+                         "price": {"input": 3, "output": 15}})
+    capture(monkeypatch, p, {"content": [{"type": "text", "text": "out"}],
+                             "usage": {"input_tokens": 1000, "output_tokens": 100}})
+    p.complete("S", "U", load_image(png_bytes))
+    assert p.last_usage == {"input_tokens": 1000, "output_tokens": 100, "cost_usd": 0.0045}

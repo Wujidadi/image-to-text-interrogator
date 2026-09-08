@@ -40,4 +40,5 @@ class OpenAICompatibleProvider(Provider):
             raise ProviderError(f"{self.describe()}: unexpected response shape") from None
         if not isinstance(content, str):
             raise ProviderError(f"{self.describe()}: empty response")
+        self._record_usage(reply.get("usage"), "prompt_tokens", "completion_tokens")
         return content

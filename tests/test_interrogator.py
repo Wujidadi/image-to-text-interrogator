@@ -111,3 +111,67 @@ def test_tags_preset_normalizes(isolated_config, fake, png_bytes):
     result = Interrogator(provider).interrogate(png_bytes, preset="tags", language="zh")
     assert result == "1girl, solo, red hair"
     assert "Danbooru" in provider.calls[0][0]
+
+
+# --- detailed results and fallbacks -----------------------------------------
+
+def test_interrogate_detailed(isolated_config, fake, png_bytes):
+    provider = fake("a cat")
+    provider.last_usage = {"x": 1}
+    result = Interrogator(provider).interrogate_detailed(png_bytes)
+    assert result.text == "a cat" and result.provider is provider
+    assert result.usage == {"x": 1} and result.elapsed >= 0
+    assert result.attempts == [] and str(result) == "a cat"
+
+
+def test_fallback_on_refusal_and_overload(isolated_config, fake, png_bytes):
+    from image_interrogator import OverloadedError
+    first = fake(RefusalError("no"))
+    second = fake(OverloadedError("busy"))
+    third = fake("a cat")
+    seen = []
+    interrogator = Interrogator(first, fallbacks=[second, third],
+                                on_fallback=lambda e, p: seen.append((e, p)))
+    result = interrogator.interrogate_detailed(png_bytes)
+    assert result.text == "a cat" and result.provider is third
+    assert [type(e) for e in result.attempts] == [RefusalError, OverloadedError]
+    assert len(seen) == 2 and isinstance(seen[0][0], RefusalError)
+    assert seen[0][1] is second and seen[1][1] is third
+    assert interrogator.interrogate(png_bytes) == "a cat"
+
+
+def test_fallback_not_used_for_other_errors(isolated_config, fake, png_bytes):
+    first = fake(ProviderError("boom"))
+    second = fake("a cat")
+    with pytest.raises(ProviderError, match="boom"):
+        Interrogator(first, fallbacks=[second]).interrogate(png_bytes)
+    assert second.calls == []
+
+
+def test_fallback_exhausted_raises_last(isolated_config, fake, png_bytes):
+    first = fake(RefusalError("no1"))
+    second = fake(RefusalError("no2"))
+    with pytest.raises(RefusalError, match="no2"):
+        Interrogator(first, fallbacks=[second]).interrogate(png_bytes)
+
+
+def test_from_config_fallbacks(isolated_config):
+    isolated_config.write_text("""
+fallbacks = ["b", "c"]
+[providers.a]
+type = "openai"
+model = "a"
+[providers.b]
+type = "openai"
+model = "b"
+[providers.c]
+type = "openai"
+model = "c"
+""", encoding="utf-8")
+    interrogator = Interrogator.from_config("a")
+    assert [p.model for p in interrogator.fallbacks] == ["b", "c"]
+    assert Interrogator.from_config("b").fallbacks[0].model == "c"
+    assert Interrogator.from_config("a", fallbacks=[]).fallbacks == []
+    assert [p.model for p in Interrogator.from_config("a", fallbacks=["c"]).fallbacks] == ["c"]
+    with pytest.raises(ConfigError, match="unknown provider profile"):
+        Interrogator.from_config("a", fallbacks=["nope"])

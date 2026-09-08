@@ -40,7 +40,6 @@ class ClaudeCodeProvider(Provider):
         super().__init__(settings)
         self.command = settings.get("command", "claude")
         self.extra_args = list(settings.get("extra_args") or [])
-        self.last_usage = None
 
     def complete(self, system, prompt, image):
         if image.path is not None:

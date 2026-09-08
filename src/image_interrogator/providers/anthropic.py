@@ -39,5 +39,6 @@ class AnthropicProvider(Provider):
         blocks = reply.get("content")
         if not isinstance(blocks, list):
             raise ProviderError(f"{self.describe()}: unexpected response shape")
+        self._record_usage(reply.get("usage"), "input_tokens", "output_tokens")
         return "".join(b.get("text", "") for b in blocks
                        if isinstance(b, dict) and b.get("type") == "text")

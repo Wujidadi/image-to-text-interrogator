@@ -5,6 +5,8 @@ from .base import Provider
 # Qwen encodes a 768x1024 image into ~840 tokens; the ollama default of 4096
 # leaves too little room for the system instruction plus a long prompt
 DEFAULT_NUM_CTX = 16384
+USAGE_KEYS = ("prompt_eval_count", "eval_count", "prompt_eval_duration", "eval_duration",
+              "load_duration", "total_duration")
 
 
 @register
@@ -34,4 +36,9 @@ class OllamaProvider(Provider):
         message = reply.get("message")
         if not isinstance(message, dict) or "content" not in message:
             raise ProviderError(f"{self.describe()}: unexpected response shape")
+        usage = {k: reply[k] for k in USAGE_KEYS if k in reply}
+        if usage.get("eval_duration") and "eval_count" in usage:
+            usage["tokens_per_second"] = round(
+                usage["eval_count"] / usage["eval_duration"] * 1e9, 1)
+        self._record_usage(usage or None, "prompt_eval_count", "eval_count")
         return message["content"]
