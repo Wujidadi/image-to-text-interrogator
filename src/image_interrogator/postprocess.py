@@ -8,13 +8,14 @@ _t2s_table = None
 
 _THINK = re.compile(r"<think>.*?(</think>|\Z)", re.DOTALL)
 _FENCE = re.compile(r"```[^\n]*\n(.*?)```", re.DOTALL)
-# A leading line that only introduces the prompt, e.g. "Prompt:",
-# "**Prompt:**", "Here is the prompt:", "## Prompt"
+# A leading line that only introduces the output, e.g. "Prompt:",
+# "**Prompt:**", "Here is the prompt:", "## Prompt", "Tags:"
+_NOUN = r"(?:prompt|tags?|tag list|description)"
 _LEADING_MARKER = re.compile(
     r"^\s*(?:#+\s*|\*\*)?(?:here(?:'s| is)\s+(?:the\s+|your\s+)?)?"
-    r"(?:[\w -]*\bprompt\b[\w -]*)(?:\s+for\s+this\s+image)?\s*[:：]?\*{0,2}\s*(?:\n|$)",
+    r"(?:[\w -]*\b" + _NOUN + r"\b[\w -]*)(?:\s+for\s+this\s+image)?\s*[:：]?\*{0,2}\s*(?:\n|$)",
     re.IGNORECASE)
-_INLINE_MARKER = re.compile(r"^\s*(?:\*\*)?(?:[\w -]*\bprompt\b)\s*[:：]\*{0,2}\s+",
+_INLINE_MARKER = re.compile(r"^\s*(?:\*\*)?(?:[\w -]*\b" + _NOUN + r"\b)\s*[:：]\*{0,2}\s+",
                             re.IGNORECASE)
 _QUOTES = (('"', '"'), ("'", "'"), ("“", "”"), ("‘", "’"))
 _BULLET = re.compile(r"^\s*[-*•]\s+", re.MULTILINE)
@@ -59,6 +60,16 @@ def single_paragraph(text):
         items = [_BULLET.sub("", line).strip() for line in text.splitlines()]
         return ", ".join(i.rstrip(",;") for i in items if i)
     return " ".join(part.strip() for part in text.split("\n") if part.strip())
+
+
+def normalize_tags(text):
+    """Comma-separated tags: one per item, trimmed, deduplicated in order"""
+    items = []
+    for raw in re.split(r"[,\n]", _BULLET.sub("", text)):
+        item = raw.strip().rstrip(".;").strip()
+        if item and item not in items:
+            items.append(item)
+    return ", ".join(items)
 
 
 def clean_output(text, paragraph=False):

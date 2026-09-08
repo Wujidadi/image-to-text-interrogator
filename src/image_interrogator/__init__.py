@@ -4,7 +4,7 @@ from .config import Config, load_config
 from .errors import (ConfigError, ImageError, ImageInterrogatorError, OverloadedError,
                      PresetNotFoundError, ProviderError, RefusalError)
 from .image import ImageInput, load_image
-from .postprocess import clean_output, is_refusal, single_paragraph, to_simplified
+from .postprocess import clean_output, is_refusal, normalize_tags, single_paragraph, to_simplified
 from .presets import DEFAULT_PRESET, Preset, list_presets, load_preset
 from .prompt import DEFAULT_LANGUAGE, LANGUAGE_DIRECTIVES, build_system, build_user
 from .providers import Provider, create_provider
@@ -43,14 +43,14 @@ class Interrogator:
                    preset_dirs=list(preset_dirs) + config.preset_dirs)
 
     def prepare(self, preset=None, instruction=None, language=None, explicit=False):
-        """Resolve the preset into (system, fixed_language); exposed so
-        callers can show or log the instruction"""
+        """Resolve the preset into (system, preset); exposed so callers can
+        show or log the instruction"""
         language = language or self.language
         self._check_language(language)
         loaded = load_preset(preset or DEFAULT_PRESET, self.preset_dirs)
         system = build_system(loaded.rule, loaded.fixed_language, language,
                               instruction, explicit)
-        return system, loaded.fixed_language
+        return system, loaded
 
     def interrogate(self, image, *, preset=None, instruction=None, language=None,
                     explicit=False):
@@ -59,14 +59,17 @@ class Interrogator:
         subclasses"""
         image = load_image(image)
         language = language or self.language
-        system, fixed = self.prepare(preset, instruction, language, explicit)
+        system, loaded = self.prepare(preset, instruction, language, explicit)
         raw = self.provider.complete(system, build_user(), image)
-        result = clean_output(raw or "", paragraph=True)
+        tags = loaded.format == "tags"
+        result = clean_output(raw or "", paragraph=not tags)
         if not result:
             raise ProviderError(f"{self.provider.describe()}: empty response")
         if is_refusal(result):
             raise RefusalError(f"{self.provider.describe()}: refused: {result}")
-        if language == "zh" and not fixed:
+        if tags:
+            result = normalize_tags(result)
+        if language == "zh" and not loaded.fixed_language:
             result = to_simplified(result)
         return result
 
@@ -84,7 +87,7 @@ __all__ = [
     "Interrogator", "interrogate", "Config", "load_config", "ImageInput", "load_image",
     "Provider", "create_provider", "Preset", "list_presets", "load_preset",
     "DEFAULT_PRESET", "DEFAULT_LANGUAGE", "LANGUAGE_DIRECTIVES", "build_system",
-    "build_user", "clean_output", "single_paragraph", "is_refusal", "to_simplified",
+    "build_user", "clean_output", "single_paragraph", "is_refusal", "normalize_tags", "to_simplified",
     "ImageInterrogatorError", "ConfigError", "PresetNotFoundError", "ImageError",
     "ProviderError", "RefusalError", "OverloadedError", "__version__",
 ]

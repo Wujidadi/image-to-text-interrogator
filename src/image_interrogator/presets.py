@@ -10,6 +10,7 @@ from .prompt import split_pragma
 BUNDLED_DIR = Path(__file__).parent / PRESET_DIR_NAME
 DEFAULT_PRESET = "faithful"
 PRESET_EXT = ".txt"
+FORMATS = ("paragraph", "tags")
 
 
 @dataclass(frozen=True)
@@ -18,6 +19,7 @@ class Preset:
     path: Path
     rule: str
     fixed_language: bool
+    format: str = "paragraph"
 
 
 def search_dirs(extra_dirs=()):
@@ -49,8 +51,16 @@ def find_preset(name, extra_dirs=()):
 
 
 def _read(name, path):
-    rule, fixed = split_pragma(path.read_text(encoding="utf-8"))
-    return Preset(name=name, path=path, rule=rule, fixed_language=fixed)
+    rule, pragmas = split_pragma(path.read_text(encoding="utf-8"))
+    fmt = "paragraph"
+    for pragma in pragmas:
+        if pragma.startswith("format="):
+            fmt = pragma[len("format="):]
+    if fmt not in FORMATS:
+        raise PresetNotFoundError(f"preset {path}: unknown format \"{fmt}\" "
+                                  f"(known: {', '.join(FORMATS)})")
+    return Preset(name=name, path=path, rule=rule,
+                  fixed_language="fixed-language" in pragmas, format=fmt)
 
 
 def load_preset(name, extra_dirs=()):

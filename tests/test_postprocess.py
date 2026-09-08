@@ -21,6 +21,8 @@ def test_strip_fence_and_quotes():
     "Here's the text-to-image prompt for this image:\na cat",
     "Text-to-image prompt:\na cat",
     "## Prompt\n\na cat",
+    "Tags: a cat",
+    "Description:\na cat",
 ])
 def test_strip_leading_markers(raw):
     assert clean_output(raw) == "a cat"
@@ -60,3 +62,10 @@ def test_to_simplified():
     from image_interrogator.postprocess import to_simplified
     assert to_simplified("一隻橘貓在窗臺上睡覺") == "一只橘猫在窗台上睡觉"
     assert to_simplified("plain ascii") == "plain ascii"
+
+
+def test_normalize_tags():
+    from image_interrogator.postprocess import normalize_tags
+    assert normalize_tags("1girl,  solo ,\nred hair, red hair, ,") == "1girl, solo, red hair"
+    assert normalize_tags("- 1girl\n- solo") == "1girl, solo"
+    assert normalize_tags("1girl, solo.") == "1girl, solo"

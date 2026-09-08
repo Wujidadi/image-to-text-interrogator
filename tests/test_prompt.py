@@ -32,8 +32,12 @@ def test_unknown_language():
 
 
 def test_split_pragma():
-    assert split_pragma(f"{FIXED_LANGUAGE_PRAGMA}\nRULE\n") == ("RULE", True)
-    assert split_pragma("RULE\nmore") == ("RULE\nmore", False)
+    assert split_pragma(f"{FIXED_LANGUAGE_PRAGMA}\nRULE\n") == ("RULE", {"fixed-language"})
+    assert split_pragma("RULE\nmore") == ("RULE\nmore", set())
+    rule, pragmas = split_pragma("# image-interrogator:format=tags\n"
+                                 f"{FIXED_LANGUAGE_PRAGMA}\n\nRULE")
+    assert rule == "RULE" and pragmas == {"fixed-language", "format=tags"}
+    assert split_pragma("# a comment\nRULE") == ("# a comment\nRULE", set())
 
 
 def test_build_user():

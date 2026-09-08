@@ -78,7 +78,9 @@ def run_listing(args):
     config = load_config(args.config)
     if args.list_presets:
         for preset in list_presets(list(args.preset_dir) + config.preset_dirs):
-            flag = "  [fixed-language]" if preset.fixed_language else ""
+            marks = (["fixed-language"] if preset.fixed_language else []) \
+                + ([preset.format] if preset.format != "paragraph" else [])
+            flag = f"  [{', '.join(marks)}]" if marks else ""
             print(f"{preset.name}\t{preset.path}{flag}")
         return
     for name in sorted(config.providers):

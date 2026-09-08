@@ -31,8 +31,8 @@ def test_explicit_and_instruction(isolated_config, fake, png_bytes):
 
 
 def test_prepare_exposes_system(isolated_config, fake):
-    system, fixed = Interrogator(fake()).prepare(instruction="x")
-    assert system.endswith("x") and fixed is False
+    system, preset = Interrogator(fake()).prepare(instruction="x")
+    assert system.endswith("x") and preset.name == "faithful"
 
 
 def test_custom_preset_dir(isolated_config, fake, tmp_path, png_bytes):
@@ -104,3 +104,10 @@ def test_fixed_language_ignores_zh(isolated_config, fake, tmp_path, png_bytes):
         png_bytes, preset="fixed", language="zh")
     assert result == "一隻橘貓"
     assert provider.calls[0][0] == "RULE"
+
+
+def test_tags_preset_normalizes(isolated_config, fake, png_bytes):
+    provider = fake("Tags: 1girl,  solo,\nsolo, red hair")
+    result = Interrogator(provider).interrogate(png_bytes, preset="tags", language="zh")
+    assert result == "1girl, solo, red hair"
+    assert "Danbooru" in provider.calls[0][0]

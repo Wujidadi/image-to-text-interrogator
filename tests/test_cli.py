@@ -73,7 +73,8 @@ def test_list_presets(isolated_config, capsys, tmp_path):
                                         encoding="utf-8")
     main(["--list-presets", "--preset-dir", str(tmp_path)])
     out = capsys.readouterr().out
-    assert out.startswith("faithful\t") and "fixed\t" in out and "[fixed-language]" in out
+    assert "\nfaithful\t" in out and "fixed\t" in out and "[fixed-language]" in out
+    assert "tags\t" in out and "[fixed-language, tags]" in out
 
 
 def test_list_providers(isolated_config, capsys):

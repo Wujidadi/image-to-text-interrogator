@@ -1,6 +1,7 @@
 """System-instruction assembly"""
 
-FIXED_LANGUAGE_PRAGMA = "# image-interrogator:fixed-language"
+PRAGMA_PREFIX = "# image-interrogator:"
+FIXED_LANGUAGE_PRAGMA = PRAGMA_PREFIX + "fixed-language"
 
 # Chinese deliberately means Simplified: Chinese-capable image models are
 # trained mostly on Simplified corpora, so it prompts better
@@ -22,12 +23,13 @@ USER_MESSAGE = ("Describe this image as a text-to-image prompt, "
 
 
 def split_pragma(text):
-    """Return (rule, fixed_language) for a preset file's text"""
-    text = text.strip()
-    first, _, rest = text.partition("\n")
-    if first.strip() == FIXED_LANGUAGE_PRAGMA:
-        return rest.strip(), True
-    return text, False
+    """Return (rule, pragmas) for a preset file's text: leading lines of
+    the form "# image-interrogator:<pragma>" are collected and stripped"""
+    lines = text.strip().splitlines()
+    pragmas = set()
+    while lines and lines[0].strip().startswith(PRAGMA_PREFIX):
+        pragmas.add(lines.pop(0).strip()[len(PRAGMA_PREFIX):])
+    return "\n".join(lines).strip(), pragmas
 
 
 def build_system(rule, fixed_language, language, instruction=None, explicit=False):
