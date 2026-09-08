@@ -47,31 +47,34 @@ image-interrogator -p concise -l zh photo.png               # short prompt in Si
 image-interrogator --type claude-code photo.png             # Sonnet 5 through the Claude Code CLI
 image-interrogator --sidecar *.png                          # batch: each prompt to <image>.txt
 image-interrogator --json --output-dir prompts/ *.png       # batch: files plus a JSON report
+image-interrogator --fallback wavespeed photo.png           # try another profile on refusal or overload
 image-interrogator --timing --show-system photo.png         # diagnostics on stderr
 pngpaste - | image-interrogator -                           # image from stdin
 image-interrogator --list-presets
 image-interrogator --list-providers
 ```
 
-| Option                       | Description                                                                |
-| ---------------------------- | -------------------------------------------------------------------------- |
-| `image...`                   | PNG, JPEG, WebP or GIF files, or `-` for stdin                             |
-| `--preset`, `-p`             | Preset name (subdirectories allowed) or plain path; default `faithful`     |
-| `--instruction`, `-i`        | Ad-hoc instruction appended to the preset                                  |
-| `--explicit`                 | Ask for adult and sexually explicit elements to be described, not softened |
-| `--language`, `-l`           | Output language `en` (default) or `zh` (Simplified Chinese)                |
-| `--provider`, `-P`           | Provider profile from the config file                                      |
-| `--type`, `--model`, `--url` | Override the chosen profile's type, model or endpoint                      |
-| `--preset-dir`               | Extra preset directory searched first (repeatable)                         |
-| `--config`                   | Config file path                                                           |
-| `--sidecar`                  | Write each prompt to `<image>.txt` next to the image instead of stdout     |
-| `--output-dir`               | Write each prompt to `<dir>/<image stem>.txt` instead of stdout            |
-| `--json`                     | Print a JSON list with prompt, elapsed time, usage and errors per image    |
-| `--show-system`              | Print the assembled system instruction to stderr                           |
-| `--timing`                   | Print the elapsed time per image to stderr                                 |
-| `--quiet`, `-q`              | Suppress the progress lines on stderr                                      |
-| `--list-presets`             | List visible presets with their source path and marks                      |
-| `--list-providers`           | List provider profiles (`*` marks the default)                             |
+| Option                       | Description                                                                  |
+| ---------------------------- | ---------------------------------------------------------------------------- |
+| `image...`                   | PNG, JPEG, WebP or GIF files, or `-` for stdin                               |
+| `--preset`, `-p`             | Preset name (subdirectories allowed) or plain path; default `faithful`       |
+| `--instruction`, `-i`        | Ad-hoc instruction appended to the preset                                    |
+| `--explicit`                 | Ask for adult and sexually explicit elements to be described, not softened   |
+| `--language`, `-l`           | Output language `en` (default) or `zh` (Simplified Chinese)                  |
+| `--provider`, `-P`           | Provider profile from the config file                                        |
+| `--type`, `--model`, `--url` | Override the chosen profile's type, model or endpoint                        |
+| `--fallback`                 | Profile tried next on refusal or overload (repeatable); overrides the config |
+| `--no-fallback`              | Never fall back to another profile                                           |
+| `--preset-dir`               | Extra preset directory searched first (repeatable)                           |
+| `--config`                   | Config file path                                                             |
+| `--sidecar`                  | Write each prompt to `<image>.txt` next to the image instead of stdout       |
+| `--output-dir`               | Write each prompt to `<dir>/<image stem>.txt` instead of stdout              |
+| `--json`                     | Print a JSON list with prompt, elapsed time, usage and errors per image      |
+| `--show-system`              | Print the assembled system instruction to stderr                             |
+| `--timing`                   | Print the elapsed time per image to stderr                                   |
+| `--quiet`, `-q`              | Suppress the progress lines on stderr                                        |
+| `--list-presets`             | List visible presets with their source path and marks                        |
+| `--list-providers`           | List provider profiles (`*` marks the default)                               |
 
 The prompt goes to stdout; everything else goes to stderr.\
 With several images, each prompt on stdout is preceded by a `# <path>` line and separated by a blank line;\
@@ -91,16 +94,20 @@ try:
     prompt = interrogator.interrogate("photo.png")
     prompt = interrogator.interrogate(image_bytes, instruction="focus on the clothing")
     prompt = interrogator.interrogate("photo.png", explicit=True)
+    result = interrogator.interrogate_detailed("photo.png")   # Result: text, provider, elapsed, usage, attempts
 except ImageInterrogatorError as e:
     ...
 ```
 
-- `Interrogator(provider, language=None, preset_dirs=())` takes any `Provider`.\
-  `Interrogator.from_config(provider=None, overrides=None, *, language=None, preset_dirs=(), config_path=None)` builds one from the config file.
+- `Interrogator(provider, language=None, preset_dirs=(), fallbacks=(), on_fallback=None)` takes any `Provider`.\
+  `Interrogator.from_config(provider=None, overrides=None, *, language=None, preset_dirs=(), config_path=None, fallbacks=None, on_fallback=None)` builds one from the config file;\
+  `fallbacks=None` takes the config file's list, `[]` disables fallbacks, and `on_fallback(error, next_provider)` is called on every switch.
 - `interrogate(image, *, preset=None, instruction=None, language=None, explicit=False) -> str` performs a single pass;\
   `image` is a path, `bytes`, a binary stream or an `ImageInput`.\
   It raises an `ImageInterrogatorError` subclass on failure:\
   `ConfigError`, `PresetNotFoundError`, `ImageError`, or `ProviderError`, whose subclasses `RefusalError` (content policy) and `OverloadedError` (HTTP 429 / 503 / 529) let callers pick a different fallback strategy.
+- `interrogate_detailed(...)` returns a `Result` instead of the bare string:\
+  `text`, `provider` (the one that answered), `elapsed` seconds, `usage` (the provider's report, see below) and `attempts` (the errors of the providers tried before, when fallbacks were used).
 - `prepare(preset, instruction, language, explicit)` returns `(system, preset)` without calling the model.
 - `interrogator.provider.describe()` gives a short `"<type> <model>"` label.
 - `interrogate(...)` at module level wraps both steps in one call.
@@ -110,7 +117,7 @@ except ImageInterrogatorError as e:
   - `load_config(path=None)`, `create_provider(settings)`
   - `clean_output(text, paragraph=False)`, `single_paragraph(text)`, `normalize_tags(text)`, `to_simplified(text)`, `is_refusal(text)`
 
-Interactive review loops and fallback decisions belong to the caller: the library is single-pass.
+Interactive review loops belong to the caller: the library is single-pass, apart from the fallback chain.
 
 ## Configuration
 
@@ -172,12 +179,24 @@ Keys common to every profile:
 - `model`
 - `url`
 - `timeout`: seconds, default 300
+- `retries`: attempts after an HTTP 429 / 503 / 529, default 2, with 1 s then 2 s of backoff (the `claude-code` type never retries)
 - `api_key_env`: environment variable holding the key; an `api_key` literal also works but is discouraged
+- `price`: a table `{ input = <USD per million input tokens>, output = <USD per million output tokens> }` used to add `cost_usd` to the usage report
 - `extra`: a table merged verbatim into the request body, e.g. `temperature` or vendor-specific options
 
-Callers may pass any of these as overrides on top of a profile.\
-`fallbacks` lists profiles to try in order when the chosen one refuses or is overloaded;\
-the CLI does not act on it yet.
+Callers may pass any of these as overrides on top of a profile.
+
+### Fallbacks
+
+`fallbacks` lists profiles to try in order when the chosen one raises `RefusalError` (the model declined) or `OverloadedError` (429 / 503 / 529 after the retries, or a Claude Code 529);\
+the chosen profile is skipped when it appears in the list, and other errors never fall back.\
+`--fallback <name>` (repeatable) replaces the list for one run, `--no-fallback` disables it, and every switch is reported on stderr.
+
+### Usage Reports
+
+After a call, `provider.last_usage` (also `Result.usage` and the `usage` field of `--json`) holds what the backend reported:\
+token counts, durations and `tokens_per_second` from ollama, `usage` from Chat Completions and Anthropic, `total_cost_usd` and `modelUsage` from Claude Code.\
+With a `price` table on the profile, `cost_usd` is estimated from the input and output token counts.
 
 ## Presets
 

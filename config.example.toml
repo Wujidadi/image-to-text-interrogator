@@ -11,12 +11,15 @@ language = "en"
 # and the bundled presets
 preset_dirs = []
 
-# Profiles tried in order when the default one refuses the image or is overloaded
+# Profiles tried in order when the chosen one refuses the image or is overloaded
+# (after the retries); e.g. ["wavespeed"] to fall back from a local model to the cloud
 fallbacks = []
 
 # Every profile needs "type"; the other keys depend on the type.
 # Common keys: model, url, timeout (seconds, default 300),
+#              retries (on HTTP 429 / 503 / 529, default 2),
 #              api_key_env (name of the environment variable holding the key),
+#              price (input and output USD per million tokens, for cost_usd in the usage report),
 #              extra (table merged verbatim into the request body)
 
 # Local ollama; num_ctx defaults to 16384 (a 768x1024 image alone is ~840 tokens
@@ -71,6 +74,9 @@ api_key_env = "OPENROUTER_API_KEY"
 type = "wavespeed"
 model = "minimax/minimax-m3"
 # api_key_env = "WAVESPEED_API_KEY"
+# [providers.wavespeed.price]
+# input = 0.30
+# output = 1.20
 
 # Single-image refinement: the most complete output, but ~90 s of reasoning
 [providers.wavespeed-refine]
