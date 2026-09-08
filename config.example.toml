@@ -1,0 +1,89 @@
+# Copy to ~/.config/image-interrogator/config.toml (or point $IMAGE_INTERROGATOR_CONFIG at it).
+# Without a config file, the built-in "ollama" profile (localhost, qwen3.6:35b) applies.
+
+# Profile used when the caller does not name one
+default_provider = "ollama"
+
+# Default output language
+language = "en"
+
+# Extra preset directories searched before ~/.config/image-interrogator/interrogators/
+# and the bundled presets
+preset_dirs = []
+
+# Profiles tried in order when the default one refuses the image or is overloaded
+fallbacks = []
+
+# Every profile needs "type"; the other keys depend on the type.
+# Common keys: model, url, timeout (seconds, default 300),
+#              api_key_env (name of the environment variable holding the key),
+#              extra (table merged verbatim into the request body)
+
+# Local ollama; num_ctx defaults to 16384 (a 768x1024 image alone is ~840 tokens
+# on Qwen), think to false
+[providers.ollama]
+type = "ollama"
+url = "http://localhost:11434"
+model = "qwen3.6:35b"
+# think = false
+# num_ctx = 16384
+# [providers.ollama.extra.options]
+# num_predict = 900
+
+# Uncensored build with the same SFW quality as qwen3.6:35b; the only local model
+# that reconstructs explicit content faithfully (use with --explicit)
+[providers.local]
+type = "ollama"
+model = "huihui_ai/Qwen3.6-abliterated:35b-a3b"
+
+# Fastest local option for batches, with occasional small misreadings
+[providers.fast]
+type = "ollama"
+model = "gemma4:26b"
+
+# An ollama server on another machine of the LAN (OLLAMA_HOST=0.0.0.0:11434 there)
+[providers.lan]
+type = "ollama"
+url = "http://a2780.local:11434"
+model = "huihui_ai/Qwen3.6-abliterated:35b-a3b"
+
+# ollama cloud through the local server: run "ollama signin" once, then any tag
+# ending in -cloud; gemma4:31b is the only free-plan starter model that reads images
+[providers.ollama-cloud]
+type = "ollama"
+model = "gemma4:31b-cloud"
+
+[providers.lmstudio]
+type = "openai"
+url = "http://localhost:1234/v1"
+model = "qwen3.5-vl-7b"
+
+[providers.openrouter]
+type = "openai"
+url = "https://openrouter.ai/api/v1"
+model = "google/gemini-3.6-flash"
+api_key_env = "OPENROUTER_API_KEY"
+
+# WaveSpeed LLM API (https://llm.wavespeed.ai/v1), same key as WaveSpeed image
+# generation; model ids carry the vendor prefix. minimax-m3: ~11 s, under $0.001
+# per image, accuracy on par with claude-sonnet-5
+[providers.wavespeed]
+type = "wavespeed"
+model = "minimax/minimax-m3"
+# api_key_env = "WAVESPEED_API_KEY"
+
+# Single-image refinement: the most complete output, but ~90 s of reasoning
+[providers.wavespeed-refine]
+type = "wavespeed"
+model = "openai/gpt-5.6-luna"
+
+# The only cloud model that describes explicit content at all (partially)
+[providers.wavespeed-nsfw]
+type = "wavespeed"
+model = "qwen/qwen3-vl-235b-a22b-instruct"
+
+[providers.claude]
+type = "anthropic"
+model = "claude-sonnet-5"
+api_key_env = "ANTHROPIC_API_KEY"
+# max_tokens = 4096
