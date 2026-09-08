@@ -11,6 +11,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Output language `zh` (Simplified Chinese), guaranteed by a deterministic char-level Traditional-to-Simplified pass over `data/t2s.txt` (distilled from OpenCC, Apache 2.0).
 - Presets `tags` (Danbooru-style tag line, fixed language, normalized and deduplicated) and `concise` (40 to 80 words); preset files may stack several `# image-interrogator:<pragma>` lines, and `format=tags` selects the tag normalization.
 - `--list-presets` shows `[fixed-language, tags]` style marks; "Tags:" and "Description:" headings are stripped from the output like "Prompt:".
+- Batch mode: several images per run, `--sidecar` (write `<image>.txt` next to the image), `--output-dir`, `--json` (prompt, elapsed time, provider usage and errors per image); one failure does not stop the rest, and the exit status is 1 when any image failed.
 
 ## [0.1.0] - 2026-09-08
 

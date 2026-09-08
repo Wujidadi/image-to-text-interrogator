@@ -132,3 +132,115 @@ def test_language_zh(isolated_config, monkeypatch, fake, png_file, capsys):
     monkeypatch.setattr("image_interrogator.create_provider", lambda s: fake("一隻橘貓"))
     main(["-q", "-l", "zh", str(png_file)])
     assert capsys.readouterr().out == "一只橘猫\n"
+
+
+# --- batch -------------------------------------------------------------------
+
+@pytest.fixture
+def two_images(tmp_path, png_bytes):
+    a, b = tmp_path / "a.png", tmp_path / "b.png"
+    a.write_bytes(png_bytes)
+    b.write_bytes(png_bytes)
+    return a, b
+
+
+def test_multiple_images_to_stdout(isolated_config, provider, two_images, capsys):
+    a, b = two_images
+    main(["-q", str(a), str(b)])
+    out = capsys.readouterr().out
+    assert out == f"# {a.resolve()}\na cat\n\n# {b.resolve()}\na cat\n"
+    assert len(provider.calls) == 2
+
+
+def test_sidecar(isolated_config, provider, two_images, capsys):
+    a, b = two_images
+    main(["--sidecar", str(a), str(b)])
+    out, err = capsys.readouterr()
+    assert out == ""
+    assert a.with_suffix(".txt").read_text(encoding="utf-8") == "a cat\n"
+    assert b.with_suffix(".txt").read_text(encoding="utf-8") == "a cat\n"
+    assert "wrote" in err and str(a.with_suffix(".txt")) in err
+
+
+def test_output_dir(isolated_config, provider, two_images, tmp_path, capsys):
+    a, _ = two_images
+    out_dir = tmp_path / "out" / "nested"
+    main(["-q", "--output-dir", str(out_dir), str(a)])
+    assert (out_dir / "a.txt").read_text(encoding="utf-8") == "a cat\n"
+    assert capsys.readouterr().out == ""
+
+
+def test_sidecar_from_stdin_is_rejected(isolated_config, provider, capsys):
+    with pytest.raises(SystemExit) as e:
+        main(["-q", "--sidecar", "-"])
+    assert e.value.code == 2
+
+
+def test_json_output(isolated_config, provider, two_images, capsys):
+    import json
+    a, b = two_images
+    main(["-q", "--json", str(a), str(b)])
+    items = json.loads(capsys.readouterr().out)
+    assert [i["image"] for i in items] == [str(a.resolve()), str(b.resolve())]
+    assert items[0]["prompt"] == "a cat" and items[0]["provider"] == "fake fake-model"
+    assert items[0]["preset"] == "faithful" and isinstance(items[0]["elapsed"], float)
+    assert "error" not in items[0]
+
+
+def test_json_includes_usage(isolated_config, monkeypatch, fake, png_file, capsys):
+    import json
+    instance = fake("a cat")
+    instance.last_usage = {"total_cost_usd": 0.1}
+    monkeypatch.setattr("image_interrogator.create_provider", lambda s: instance)
+    main(["-q", "--json", str(png_file)])
+    assert json.loads(capsys.readouterr().out)[0]["usage"] == {"total_cost_usd": 0.1}
+
+
+def test_batch_continues_after_failure(isolated_config, provider, two_images, tmp_path, capsys):
+    import json
+    a, b = two_images
+    missing = tmp_path / "missing.png"
+    with pytest.raises(SystemExit) as e:
+        main(["-q", "--json", str(a), str(missing), str(b)])
+    assert e.value.code == 1
+    out, err = capsys.readouterr()
+    items = json.loads(out)
+    assert len(items) == 3 and "not found" in items[1]["error"] and items[2]["prompt"] == "a cat"
+    assert "1 of 3 images failed" in err and str(missing) in err
+
+
+def test_batch_failure_plain_output(isolated_config, provider, two_images, tmp_path, capsys):
+    a, _ = two_images
+    with pytest.raises(SystemExit):
+        main(["-q", str(a), str(tmp_path / "missing.png")])
+    out, err = capsys.readouterr()
+    assert out == f"# {a.resolve()}\na cat\n"
+    assert "missing.png: image not found" in err
+
+
+def test_timing_per_image(isolated_config, provider, two_images, capsys):
+    a, b = two_images
+    main(["-q", "--timing", str(a), str(b)])
+    assert capsys.readouterr().err.count("elapsed") == 2
+
+
+def test_listing_with_broken_config(isolated_config, capsys):
+    isolated_config.write_text("not = = toml", encoding="utf-8")
+    with pytest.raises(SystemExit) as e:
+        main(["--list-providers"])
+    assert e.value.code == 1
+    assert "failed to parse" in capsys.readouterr().err
+
+
+def test_unknown_profile_exit(isolated_config, png_file, capsys):
+    with pytest.raises(SystemExit) as e:
+        main(["-q", "-P", "nope", str(png_file)])
+    assert e.value.code == 1
+    assert "unknown provider profile" in capsys.readouterr().err
+
+
+def test_failure_first_then_success_plain(isolated_config, provider, two_images, tmp_path, capsys):
+    a, _ = two_images
+    with pytest.raises(SystemExit):
+        main(["-q", str(tmp_path / "missing.png"), str(a)])
+    assert capsys.readouterr().out == f"# {a.resolve()}\na cat\n"

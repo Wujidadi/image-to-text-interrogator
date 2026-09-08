@@ -18,5 +18,5 @@ Cover, in this order, everything that applies:
 Output rules:
 - Output a single line of lowercase Danbooru-style tags separated by ", " (comma and space), words inside a tag separated by spaces.
 - Order from most to least important, as listed above.
-- Never include quality or meta tags such as masterpiece, best quality, highres, absurdres, score_9.
+- Never include quality or meta tags such as masterpiece, best quality, highres, absurdres, score_9, detailed, highly detailed.
 - Output only the tag line: no heading, no explanation, no Markdown, no quotes around the line, no negative tags.
