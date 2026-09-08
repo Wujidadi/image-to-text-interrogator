@@ -19,4 +19,11 @@ def create_provider(settings):
     return cls(settings)
 
 
-__all__ = ["Provider", "PROVIDER_TYPES", "create_provider", "register"]
+from .anthropic import AnthropicProvider  # noqa: E402
+from .ollama import OllamaProvider  # noqa: E402
+from .openai_compatible import OpenAICompatibleProvider  # noqa: E402
+from .wavespeed import WaveSpeedProvider  # noqa: E402
+
+__all__ = ["Provider", "PROVIDER_TYPES", "create_provider", "register",
+           "OllamaProvider", "OpenAICompatibleProvider", "WaveSpeedProvider",
+           "AnthropicProvider"]

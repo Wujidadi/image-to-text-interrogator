@@ -93,3 +93,158 @@ def test_post_json_invalid_json(fake, monkeypatch):
 def test_unknown_type_message():
     with pytest.raises(ConfigError, match="unknown provider type"):
         create_provider({"type": None})
+
+
+# --- concrete backends -------------------------------------------------------
+
+def capture(monkeypatch, provider, reply):
+    calls = []
+
+    def fake_post(url, payload, headers=None):
+        calls.append((url, payload, headers or {}))
+        return reply
+
+    monkeypatch.setattr(provider, "_post_json", fake_post)
+    return calls
+
+
+def test_ollama(monkeypatch, png_bytes):
+    from image_interrogator import load_image
+    image = load_image(png_bytes)
+    p = create_provider({"type": "ollama", "extra": {"options": {"num_predict": 900}}})
+    calls = capture(monkeypatch, p, {"message": {"content": "out"}})
+    assert p.complete("S", "U", image) == "out"
+    url, payload, _ = calls[0]
+    assert url == "http://localhost:11434/api/chat"
+    assert payload["model"] == "qwen3.6:35b"
+    assert payload["think"] is False and payload["stream"] is False
+    assert payload["messages"][0] == {"role": "system", "content": "S"}
+    assert payload["messages"][1] == {"role": "user", "content": "U", "images": [image.base64]}
+    assert payload["options"] == {"num_ctx": 16384, "num_predict": 900}
+
+
+def test_ollama_think_and_num_ctx_override(monkeypatch, png_bytes):
+    from image_interrogator import load_image
+    p = create_provider({"type": "ollama", "think": True, "num_ctx": 8192})
+    calls = capture(monkeypatch, p, {"message": {"content": "out"}})
+    p.complete("S", "U", load_image(png_bytes))
+    payload = calls[0][1]
+    assert payload["think"] is True and payload["options"]["num_ctx"] == 8192
+
+
+def test_ollama_bad_shape(monkeypatch, png_bytes):
+    from image_interrogator import load_image
+    p = create_provider({"type": "ollama"})
+    capture(monkeypatch, p, {"message": "nope"})
+    with pytest.raises(ProviderError, match="unexpected response shape"):
+        p.complete("S", "U", load_image(png_bytes))
+
+
+def test_openai(monkeypatch, png_bytes):
+    from image_interrogator import load_image
+    image = load_image(png_bytes)
+    p = create_provider({"type": "openai", "model": "m", "api_key": "k",
+                         "url": "https://h/v1/", "extra": {"temperature": 0.2}})
+    calls = capture(monkeypatch, p, {"choices": [{"message": {"content": "out"}}]})
+    assert p.complete("S", "U", image) == "out"
+    url, payload, headers = calls[0]
+    assert url == "https://h/v1/chat/completions"
+    assert headers["Authorization"] == "Bearer k"
+    assert payload["temperature"] == 0.2 and payload["max_tokens"] == 4000
+    assert payload["messages"][0] == {"role": "system", "content": "S"}
+    assert payload["messages"][1] == {
+        "role": "user",
+        "content": [{"type": "text", "text": "U"},
+                    {"type": "image_url", "image_url": {"url": image.data_uri}}]}
+
+
+def test_openai_without_key_and_custom_max_tokens(monkeypatch, png_bytes):
+    from image_interrogator import load_image
+    p = create_provider({"type": "openai", "model": "m", "url": "http://localhost:1234/v1",
+                         "max_tokens": 700})
+    calls = capture(monkeypatch, p, {"choices": [{"message": {"content": "out"}}]})
+    p.complete("S", "U", load_image(png_bytes))
+    _, payload, headers = calls[0]
+    assert "Authorization" not in headers and payload["max_tokens"] == 700
+
+
+@pytest.mark.parametrize("reply", [{"error": "x"}, {"choices": []},
+                                   {"choices": [{"message": {"content": None}}]}])
+def test_openai_bad_shape(monkeypatch, png_bytes, reply):
+    from image_interrogator import load_image
+    p = create_provider({"type": "openai", "model": "m"})
+    capture(monkeypatch, p, reply)
+    with pytest.raises(ProviderError):
+        p.complete("S", "U", load_image(png_bytes))
+
+
+def test_wavespeed(monkeypatch, png_bytes):
+    from image_interrogator import load_image
+    monkeypatch.setenv("WAVESPEED_API_KEY", "ws")
+    p = create_provider({"type": "wavespeed"})
+    calls = capture(monkeypatch, p, {"choices": [{"message": {"content": "out"}}]})
+    assert p.complete("S", "U", load_image(png_bytes)) == "out"
+    url, payload, headers = calls[0]
+    assert url == "https://llm.wavespeed.ai/v1/chat/completions"
+    assert headers["Authorization"] == "Bearer ws"
+    assert payload["model"] == "minimax/minimax-m3"
+
+
+def test_wavespeed_key_env_override(monkeypatch):
+    monkeypatch.delenv("WAVESPEED_API_KEY", raising=False)
+    monkeypatch.setenv("OTHER_KEY", "o")
+    assert create_provider({"type": "wavespeed", "api_key_env": "OTHER_KEY"}).api_key == "o"
+    with pytest.raises(ConfigError, match="WAVESPEED_API_KEY"):
+        create_provider({"type": "wavespeed"}).api_key
+
+
+def test_anthropic(monkeypatch, png_bytes):
+    from image_interrogator import load_image
+    image = load_image(png_bytes)
+    p = create_provider({"type": "anthropic", "api_key": "k"})
+    calls = capture(monkeypatch, p, {"stop_reason": "end_turn",
+                                     "content": [{"type": "text", "text": "out"},
+                                                 {"type": "tool_use"},
+                                                 {"type": "text", "text": "!"}]})
+    assert p.complete("S", "U", image) == "out!"
+    url, payload, headers = calls[0]
+    assert url == "https://api.anthropic.com/v1/messages"
+    assert headers["x-api-key"] == "k" and headers["anthropic-version"] == "2023-06-01"
+    assert payload["system"] == "S" and payload["model"] == "claude-sonnet-5"
+    assert payload["max_tokens"] == 4096
+    assert payload["messages"] == [{"role": "user", "content": [
+        {"type": "image", "source": {"type": "base64", "media_type": "image/png",
+                                     "data": image.base64}},
+        {"type": "text", "text": "U"}]}]
+
+
+def test_anthropic_refusal(monkeypatch, png_bytes):
+    from image_interrogator import RefusalError, load_image
+    p = create_provider({"type": "anthropic", "api_key": "k"})
+    capture(monkeypatch, p, {"stop_reason": "refusal", "content": [],
+                             "stop_details": {"category": "x"}})
+    with pytest.raises(RefusalError, match=r"refused \(x\)"):
+        p.complete("S", "U", load_image(png_bytes))
+    capture(monkeypatch, p, {"stop_reason": "refusal", "content": []})
+    with pytest.raises(RefusalError, match="unspecified"):
+        p.complete("S", "U", load_image(png_bytes))
+
+
+def test_anthropic_bad_shape(monkeypatch, png_bytes):
+    from image_interrogator import load_image
+    p = create_provider({"type": "anthropic", "api_key": "k"})
+    capture(monkeypatch, p, {"content": "x"})
+    with pytest.raises(ProviderError, match="unexpected response shape"):
+        p.complete("S", "U", load_image(png_bytes))
+
+
+def test_registered_types():
+    assert set(PROVIDER_TYPES) >= {"ollama", "openai", "wavespeed", "anthropic"}
+
+
+def test_anthropic_without_key(monkeypatch, png_bytes):
+    from image_interrogator import load_image
+    p = create_provider({"type": "anthropic", "url": "http://proxy.local", "api_key": None})
+    calls = capture(monkeypatch, p, {"content": [{"type": "text", "text": "out"}]})
+    assert p.complete("S", "U", load_image(png_bytes)) == "out"
+    assert "x-api-key" not in calls[0][2]
