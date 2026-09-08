@@ -1,14 +1,15 @@
 import pytest
 
 from image_interrogator.prompt import (EXPLICIT_ADDENDUM, FIXED_LANGUAGE_PRAGMA,
-                                       LANGUAGE_DIRECTIVES, USER_MESSAGE,
+                                       LANGUAGE_DIRECTIVES, LANGUAGE_REMINDERS, USER_MESSAGE,
                                        build_system, build_user, split_pragma)
 
 
-def test_language_directive_leads():
+def test_language_directive_leads_and_reminder_trails():
     system = build_system("RULE", False, "en")
     assert system.startswith(LANGUAGE_DIRECTIVES["en"])
-    assert system.endswith("RULE")
+    assert system.endswith(LANGUAGE_REMINDERS["en"])
+    assert "RULE" in system
 
 
 def test_fixed_language_omits_directive():
@@ -20,10 +21,17 @@ def test_explicit_addendum_after_rule():
     assert system == "RULE\n\n" + EXPLICIT_ADDENDUM
 
 
-def test_instruction_last():
+def test_instruction_last_for_fixed_language():
     system = build_system("RULE", True, "en", instruction="focus on clothing", explicit=True)
     assert system.index(EXPLICIT_ADDENDUM) < system.index("focus on clothing")
     assert system.endswith("Custom instruction (takes precedence over the rules above): focus on clothing")
+
+
+def test_reminder_after_instruction():
+    system = build_system("RULE", False, "zh", instruction="focus on clothing")
+    assert system.index("focus on clothing") < system.index(LANGUAGE_REMINDERS["zh"])
+    assert system.endswith(LANGUAGE_REMINDERS["zh"])
+    assert "简体中文" in LANGUAGE_REMINDERS["zh"]
 
 
 def test_unknown_language():

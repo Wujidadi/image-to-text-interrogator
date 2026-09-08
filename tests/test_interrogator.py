@@ -27,19 +27,19 @@ def test_explicit_and_instruction(isolated_config, fake, png_bytes):
     provider = fake("a cat")
     Interrogator(provider).interrogate(png_bytes, instruction="focus on fur", explicit=True)
     system = provider.calls[0][0]
-    assert EXPLICIT_ADDENDUM in system and system.endswith("focus on fur")
+    assert EXPLICIT_ADDENDUM in system and "focus on fur" in system
 
 
 def test_prepare_exposes_system(isolated_config, fake):
     system, preset = Interrogator(fake()).prepare(instruction="x")
-    assert system.endswith("x") and preset.name == "faithful"
+    assert "above): x" in system and preset.name == "faithful"
 
 
 def test_custom_preset_dir(isolated_config, fake, tmp_path, png_bytes):
     (tmp_path / "mine.txt").write_text("MINE", encoding="utf-8")
     provider = fake("out")
     Interrogator(provider, preset_dirs=[tmp_path]).interrogate(png_bytes, preset="mine")
-    assert provider.calls[0][0].endswith("MINE")
+    assert "MINE" in provider.calls[0][0]
 
 
 def test_cleans_output_and_merges_paragraphs(isolated_config, fake, png_bytes):

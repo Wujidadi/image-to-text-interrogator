@@ -10,6 +10,14 @@ LANGUAGE_DIRECTIVES = {
     "zh": "The final prompt MUST be written entirely in Simplified Chinese "
           "(简体中文); never use Traditional Chinese characters.",
 }
+# A leading directive alone loses to a long English rule (measured with
+# qwen3.6:35b and gemma4:26b on the faithful preset: both answered in
+# English); the same requirement repeated as the last line holds
+LANGUAGE_REMINDERS = {
+    "en": "Language reminder: write the entire prompt in English.",
+    "zh": "Language reminder: write the entire prompt in Simplified Chinese (简体中文), "
+          "no English except verbatim visible text.",
+}
 DEFAULT_LANGUAGE = "en"
 
 EXPLICIT_ADDENDUM = (
@@ -33,9 +41,9 @@ def split_pragma(text):
 
 
 def build_system(rule, fixed_language, language, instruction=None, explicit=False):
-    """Assemble the system instruction: language directive first (a
-    trailing directive loses to the model's own habits), then the preset
-    rule, the explicit-content addendum, and the custom instruction"""
+    """Assemble the system instruction: language directive first, then
+    the preset rule, the explicit-content addendum, the custom
+    instruction, and the language requirement once more as the last line"""
     if language not in LANGUAGE_DIRECTIVES:
         raise ValueError(f"unknown language: {language}")
     system = "" if fixed_language else LANGUAGE_DIRECTIVES[language] + "\n\n"
@@ -45,6 +53,8 @@ def build_system(rule, fixed_language, language, instruction=None, explicit=Fals
     if instruction:
         system += ("\n\nCustom instruction (takes precedence over the rules "
                    f"above): {instruction}")
+    if not fixed_language:
+        system += "\n\n" + LANGUAGE_REMINDERS[language]
     return system
 
 

@@ -5,6 +5,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- `-l zh` produced English on the `faithful` preset with qwen3.6:35b and gemma4:26b: the language requirement is now repeated as the last line of the system instruction, after the custom instruction, and `LANGUAGE_REMINDERS` is exported.
+- The `faithful` and `faithful-negative` presets forbid section labels, which the Chinese output had started to add.
+
 ## [0.4.0] - 2026-09-08
 
 ### Added

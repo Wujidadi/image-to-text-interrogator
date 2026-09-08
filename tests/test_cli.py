@@ -24,7 +24,7 @@ def test_quiet_and_options(isolated_config, provider, png_file, capsys):
     out, err = capsys.readouterr()
     assert out == "a cat\n" and err == ""
     system = provider.calls[0][0]
-    assert EXPLICIT_ADDENDUM in system and system.endswith("focus on fur")
+    assert EXPLICIT_ADDENDUM in system and "focus on fur" in system
 
 
 def test_show_system_and_timing(isolated_config, provider, png_file, capsys):
@@ -65,7 +65,7 @@ def test_stdin_image(isolated_config, provider, png_bytes, capsys, monkeypatch):
 def test_preset_dir(isolated_config, provider, png_file, tmp_path, capsys):
     (tmp_path / "mine.txt").write_text("MINE", encoding="utf-8")
     main(["-q", "--preset-dir", str(tmp_path), "-p", "mine", str(png_file)])
-    assert provider.calls[0][0].endswith("MINE")
+    assert "MINE" in provider.calls[0][0]
 
 
 def test_list_presets(isolated_config, capsys, tmp_path):

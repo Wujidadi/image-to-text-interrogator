@@ -23,4 +23,5 @@ Output rules:
 - Be objective and concrete; no metaphors, no narrative, no interpretation of meaning or emotion beyond what the expression and posture show.
 - Never include quality tags or meta-terms such as "8k", "masterpiece", "best quality", "highly detailed", "trending on artstation".
 - Do not describe the image as an image: no "this image shows", "the picture depicts".
+- The numbered order above is for you, not for the output: never label sections ("Subject:", "Lighting:", "主体：") and never number them.
 - Output only the two sections: no title, no explanation, no Markdown formatting, no code block, no quotation marks around them.
