@@ -11,6 +11,10 @@ language = "en"
 # and the bundled presets
 preset_dirs = []
 
+# Downscale every image so its longer side is at most this many pixels before the call;
+# needs the "resize" extra (Pillow). Unset: images are sent as they are
+# max_side = 1536
+
 # Profiles tried in order when the chosen one refuses the image or is overloaded
 # (after the retries); e.g. ["wavespeed"] to fall back from a local model to the cloud
 fallbacks = []
@@ -87,6 +91,14 @@ model = "openai/gpt-5.6-luna"
 [providers.wavespeed-nsfw]
 type = "wavespeed"
 model = "qwen/qwen3-vl-235b-a22b-instruct"
+
+# WaveSpeed model endpoint (upload, submit, poll): the only usable endpoint is slower
+# and pricier per image ($0.006) than the LLM service, kept for completeness
+[providers.wavespeed-nemotron]
+type = "wavespeed-endpoint"
+model = "nvidia/nemotron-3-nano-omni/vision"
+# max_tokens = 1024
+# poll_interval = 2
 
 [providers.claude]
 type = "anthropic"

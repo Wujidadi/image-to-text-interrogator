@@ -3,7 +3,7 @@
 Vision-LLM-driven image interrogation: turn an image into a faithful, detailed prompt for text-to-image models.\
 Talks to a local ollama by default, and can be pointed at ollama cloud, the WaveSpeed LLM API, or any OpenAI-compatible or Anthropic endpoint.\
 Usable as a Python library or as the `image-interrogator` command.\
-Zero runtime dependencies, Python 3.11+.
+Zero runtime dependencies, Python 3.11+ (Pillow only through the optional `resize` extra).
 
 Companion of [text-to-image-prompt-enhancer](https://github.com/Wujidadi/text-to-image-prompt-enhancer):\
 the interrogator reconstructs a prompt from an image, the enhancer restyles a prompt.\
@@ -48,6 +48,9 @@ image-interrogator --type claude-code photo.png             # Sonnet 5 through t
 image-interrogator --sidecar *.png                          # batch: each prompt to <image>.txt
 image-interrogator --json --output-dir prompts/ *.png       # batch: files plus a JSON report
 image-interrogator --fallback wavespeed photo.png           # try another profile on refusal or overload
+image-interrogator --compare wavespeed --compare claude photo.png   # same image through several profiles
+image-interrogator -p faithful-negative photo.png           # prompt plus a separate negative prompt
+image-interrogator --max-side 1536 huge.png                 # downscale first (needs the resize extra)
 image-interrogator --timing --show-system photo.png         # diagnostics on stderr
 pngpaste - | image-interrogator -                           # image from stdin
 image-interrogator --list-presets
@@ -107,15 +110,15 @@ except ImageInterrogatorError as e:
   It raises an `ImageInterrogatorError` subclass on failure:\
   `ConfigError`, `PresetNotFoundError`, `ImageError`, or `ProviderError`, whose subclasses `RefusalError` (content policy) and `OverloadedError` (HTTP 429 / 503 / 529) let callers pick a different fallback strategy.
 - `interrogate_detailed(...)` returns a `Result` instead of the bare string:\
-  `text`, `provider` (the one that answered), `elapsed` seconds, `usage` (the provider's report, see below) and `attempts` (the errors of the providers tried before, when fallbacks were used).
+  `text`, `negative` (from `format=negative` presets, else `None`), `provider` (the one that answered), `elapsed` seconds, `usage` (the provider's report, see below), `attempts` (the errors of the providers tried before, when fallbacks were used) and `image` (the `ImageInput` actually sent).
 - `prepare(preset, instruction, language, explicit)` returns `(system, preset)` without calling the model.
 - `interrogator.provider.describe()` gives a short `"<type> <model>"` label.
 - `interrogate(...)` at module level wraps both steps in one call.
 - Also exported for callers that need the pieces:
-  - `load_image(source)`, `ImageInput`
+  - `load_image(source)`, `resize_image(image, max_side)`, `ImageInput`
   - `list_presets(extra_dirs=())`, `load_preset(name, extra_dirs=())`
   - `load_config(path=None)`, `create_provider(settings)`
-  - `clean_output(text, paragraph=False)`, `single_paragraph(text)`, `normalize_tags(text)`, `to_simplified(text)`, `is_refusal(text)`
+  - `clean_output(text, paragraph=False)`, `single_paragraph(text)`, `normalize_tags(text)`, `split_negative(text)`, `to_simplified(text)`, `is_refusal(text)`
 
 Interactive review loops belong to the caller: the library is single-pass, apart from the fallback chain.
 
@@ -166,19 +169,20 @@ type = "claude-code"
 model = "sonnet"
 ```
 
-| Type          | Endpoint                      | Default `url`                 | Notes                                                                          |
-| ------------- | ----------------------------- | ----------------------------- | ------------------------------------------------------------------------------ |
-| `ollama`      | `POST {url}/api/chat`         | `http://localhost:11434`      | `think` (default `false`), `num_ctx` (default `16384`); image on the user turn |
-| `openai`      | `POST {url}/chat/completions` | `https://api.openai.com/v1`   | `max_tokens` (default `4000`, reasoning models need it); image as a data URI   |
-| `wavespeed`   | `POST {url}/chat/completions` | `https://llm.wavespeed.ai/v1` | key from `$WAVESPEED_API_KEY` unless `api_key_env` is set                      |
-| `anthropic`   | `POST {url}/v1/messages`      | `https://api.anthropic.com`   | `max_tokens` (default `4096`); refusals raise `RefusalError`                   |
-| `claude-code` | `claude -p` subprocess        | the `claude` on `PATH`        | `model` is a Claude Code alias (default `sonnet`); `command`, `extra_args`     |
+| Type                 | Endpoint                                                                                       | Default `url`                     | Notes                                                                                                                                   |
+| -------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `ollama`             | `POST {url}/api/chat`                                                                          | `http://localhost:11434`          | `think` (default `false`), `num_ctx` (default `16384`); image on the user turn                                                          |
+| `openai`             | `POST {url}/chat/completions`                                                                  | `https://api.openai.com/v1`       | `max_tokens` (default `4000`, reasoning models need it); image as a data URI                                                            |
+| `wavespeed`          | `POST {url}/chat/completions`                                                                  | `https://llm.wavespeed.ai/v1`     | key from `$WAVESPEED_API_KEY` unless `api_key_env` is set                                                                               |
+| `anthropic`          | `POST {url}/v1/messages`                                                                       | `https://api.anthropic.com`       | `max_tokens` (default `4096`); refusals raise `RefusalError`                                                                            |
+| `wavespeed-endpoint` | `POST {url}/<model id>` after `POST {url}/media/uploads`, then polls `predictions/<id>/result` | `https://api.wavespeed.ai/api/v3` | default `nvidia/nemotron-3-nano-omni/vision`; `max_tokens` (default `1024`), `poll_interval` (default `2`), `timeout` is the total wait |
+| `claude-code`        | `claude -p` subprocess                                                                         | the `claude` on `PATH`            | `model` is a Claude Code alias (default `sonnet`); `command`, `extra_args`                                                              |
 
 Keys common to every profile:
 
 - `model`
 - `url`
-- `timeout`: seconds, default 300
+- `timeout`: seconds, default 300 (for `wavespeed-endpoint`, the total time to wait for the prediction)
 - `retries`: attempts after an HTTP 429 / 503 / 529, default 2, with 1 s then 2 s of backoff (the `claude-code` type never retries)
 - `api_key_env`: environment variable holding the key; an `api_key` literal also works but is discouraged
 - `price`: a table `{ input = <USD per million input tokens>, output = <USD per million output tokens> }` used to add `cost_usd` to the usage report
@@ -188,9 +192,23 @@ Callers may pass any of these as overrides on top of a profile.
 
 ### Fallbacks
 
+`max_side` at the top level downscales every image before the call (see [Downscaling](#downscaling)).\
 `fallbacks` lists profiles to try in order when the chosen one raises `RefusalError` (the model declined) or `OverloadedError` (429 / 503 / 529 after the retries, or a Claude Code 529);\
 the chosen profile is skipped when it appears in the list, and other errors never fall back.\
 `--fallback <name>` (repeatable) replaces the list for one run, `--no-fallback` disables it, and every switch is reported on stderr.
+
+### Compare Mode
+
+`--compare <profile>` (repeatable) runs every image through the chosen profile and each named one, printing the results side by side under `# <provider>` headers;\
+sidecars become `<image>.<profile>.txt` and `--json` records carry a `profile` field.\
+Fallbacks are disabled in this mode so every result is attributed to the profile that produced it.
+
+### Downscaling
+
+Large images cost tokens and hit the 5 MB limit of some backends.\
+With the `resize` extra installed (`uv tool install "image-to-text-interrogator[resize] @ git+..."`, or `uv add "image-to-text-interrogator[resize] @ git+..."`), `max_side` in the config file, `max_side=` on `Interrogator`, or `--max-side` scales the image down before the call so its longer side is at most that many pixels, re-encoded in the original format;\
+`Result.image` is the image actually sent.\
+Without Pillow the option raises an `ImageError` naming the extra.
 
 ### Usage Reports
 
