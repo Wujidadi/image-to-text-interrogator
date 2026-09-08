@@ -87,3 +87,11 @@ type = "anthropic"
 model = "claude-sonnet-5"
 api_key_env = "ANTHROPIC_API_KEY"
 # max_tokens = 4096
+
+# Claude Code CLI on a Max subscription: the most accurate route measured, quota-billed
+# (each call carries Claude Code's own 50k to 70k token context), for a few images at a time
+[providers.claude-code]
+type = "claude-code"
+model = "sonnet"
+# command = "claude"
+# extra_args = []

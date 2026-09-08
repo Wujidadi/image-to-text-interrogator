@@ -209,13 +209,21 @@ def test_batch_continues_after_failure(isolated_config, provider, two_images, tm
     assert "1 of 3 images failed" in err and str(missing) in err
 
 
+def test_batch_prefixes_errors_without_path(isolated_config, monkeypatch, fake, two_images, capsys):
+    monkeypatch.setattr("image_interrogator.create_provider", lambda s: fake(ProviderError("boom")))
+    a, b = two_images
+    with pytest.raises(SystemExit):
+        main(["-q", str(a), str(b)])
+    assert f"{a}: boom" in capsys.readouterr().err
+
+
 def test_batch_failure_plain_output(isolated_config, provider, two_images, tmp_path, capsys):
     a, _ = two_images
     with pytest.raises(SystemExit):
         main(["-q", str(a), str(tmp_path / "missing.png")])
     out, err = capsys.readouterr()
     assert out == f"# {a.resolve()}\na cat\n"
-    assert "missing.png: image not found" in err
+    assert "missing.png: image not found" not in err and "image not found" in err
 
 
 def test_timing_per_image(isolated_config, provider, two_images, capsys):

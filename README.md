@@ -42,6 +42,11 @@ image-interrogator --explicit photo.png                     # describe adult con
 image-interrogator -P wavespeed photo.png                   # provider profile from the config file
 image-interrogator -m gemma4:26b photo.png                  # another model on the default profile
 image-interrogator --type wavespeed photo.png               # another type, with that type's defaults
+image-interrogator -p tags illustration.png                 # Danbooru-style tag line
+image-interrogator -p concise -l zh photo.png               # short prompt in Simplified Chinese
+image-interrogator --type claude-code photo.png             # Sonnet 5 through the Claude Code CLI
+image-interrogator --sidecar *.png                          # batch: each prompt to <image>.txt
+image-interrogator --json --output-dir prompts/ *.png       # batch: files plus a JSON report
 image-interrogator --timing --show-system photo.png         # diagnostics on stderr
 pngpaste - | image-interrogator -                           # image from stdin
 image-interrogator --list-presets
@@ -50,23 +55,27 @@ image-interrogator --list-providers
 
 | Option                       | Description                                                                |
 | ---------------------------- | -------------------------------------------------------------------------- |
-| `image`                      | PNG, JPEG, WebP or GIF file, or `-` for stdin                              |
+| `image...`                   | PNG, JPEG, WebP or GIF files, or `-` for stdin                             |
 | `--preset`, `-p`             | Preset name (subdirectories allowed) or plain path; default `faithful`     |
 | `--instruction`, `-i`        | Ad-hoc instruction appended to the preset                                  |
 | `--explicit`                 | Ask for adult and sexually explicit elements to be described, not softened |
-| `--language`, `-l`           | Output language, `en`                                                      |
+| `--language`, `-l`           | Output language `en` (default) or `zh` (Simplified Chinese)                |
 | `--provider`, `-P`           | Provider profile from the config file                                      |
 | `--type`, `--model`, `--url` | Override the chosen profile's type, model or endpoint                      |
 | `--preset-dir`               | Extra preset directory searched first (repeatable)                         |
 | `--config`                   | Config file path                                                           |
+| `--sidecar`                  | Write each prompt to `<image>.txt` next to the image instead of stdout     |
+| `--output-dir`               | Write each prompt to `<dir>/<image stem>.txt` instead of stdout            |
+| `--json`                     | Print a JSON list with prompt, elapsed time, usage and errors per image    |
 | `--show-system`              | Print the assembled system instruction to stderr                           |
-| `--timing`                   | Print the elapsed time to stderr                                           |
-| `--quiet`, `-q`              | Suppress the progress line on stderr                                       |
-| `--list-presets`             | List visible presets with their source path                                |
+| `--timing`                   | Print the elapsed time per image to stderr                                 |
+| `--quiet`, `-q`              | Suppress the progress lines on stderr                                      |
+| `--list-presets`             | List visible presets with their source path and marks                      |
 | `--list-providers`           | List provider profiles (`*` marks the default)                             |
 
 The prompt goes to stdout; everything else goes to stderr.\
-Exit status is 1 on any failure.\
+With several images, each prompt on stdout is preceded by a `# <path>` line and separated by a blank line;\
+one failed image does not stop the others, and the exit status is 1 when any image failed.\
 `--type` switches the backend type and drops the profile's `url`, `model` and `api_key_env`, so that the new type's defaults apply unless overridden on the same command line.
 
 ## Library
@@ -92,14 +101,14 @@ except ImageInterrogatorError as e:
   `image` is a path, `bytes`, a binary stream or an `ImageInput`.\
   It raises an `ImageInterrogatorError` subclass on failure:\
   `ConfigError`, `PresetNotFoundError`, `ImageError`, or `ProviderError`, whose subclasses `RefusalError` (content policy) and `OverloadedError` (HTTP 429 / 503 / 529) let callers pick a different fallback strategy.
-- `prepare(preset, instruction, language, explicit)` returns the assembled system instruction without calling the model.
+- `prepare(preset, instruction, language, explicit)` returns `(system, preset)` without calling the model.
 - `interrogator.provider.describe()` gives a short `"<type> <model>"` label.
 - `interrogate(...)` at module level wraps both steps in one call.
 - Also exported for callers that need the pieces:
   - `load_image(source)`, `ImageInput`
   - `list_presets(extra_dirs=())`, `load_preset(name, extra_dirs=())`
   - `load_config(path=None)`, `create_provider(settings)`
-  - `clean_output(text, paragraph=False)`, `single_paragraph(text)`, `is_refusal(text)`
+  - `clean_output(text, paragraph=False)`, `single_paragraph(text)`, `normalize_tags(text)`, `to_simplified(text)`, `is_refusal(text)`
 
 Interactive review loops and fallback decisions belong to the caller: the library is single-pass.
 
@@ -144,14 +153,19 @@ model = "minimax/minimax-m3"
 type = "anthropic"
 model = "claude-sonnet-5"
 api_key_env = "ANTHROPIC_API_KEY"
+
+[providers.claude-code]         # Claude Code CLI on a Max subscription: best accuracy, quota-billed
+type = "claude-code"
+model = "sonnet"
 ```
 
-| Type        | Endpoint                      | Default `url`                 | Notes                                                                          |
-| ----------- | ----------------------------- | ----------------------------- | ------------------------------------------------------------------------------ |
-| `ollama`    | `POST {url}/api/chat`         | `http://localhost:11434`      | `think` (default `false`), `num_ctx` (default `16384`); image on the user turn |
-| `openai`    | `POST {url}/chat/completions` | `https://api.openai.com/v1`   | `max_tokens` (default `4000`, reasoning models need it); image as a data URI   |
-| `wavespeed` | `POST {url}/chat/completions` | `https://llm.wavespeed.ai/v1` | key from `$WAVESPEED_API_KEY` unless `api_key_env` is set                      |
-| `anthropic` | `POST {url}/v1/messages`      | `https://api.anthropic.com`   | `max_tokens` (default `4096`); refusals raise `RefusalError`                   |
+| Type          | Endpoint                      | Default `url`                 | Notes                                                                          |
+| ------------- | ----------------------------- | ----------------------------- | ------------------------------------------------------------------------------ |
+| `ollama`      | `POST {url}/api/chat`         | `http://localhost:11434`      | `think` (default `false`), `num_ctx` (default `16384`); image on the user turn |
+| `openai`      | `POST {url}/chat/completions` | `https://api.openai.com/v1`   | `max_tokens` (default `4000`, reasoning models need it); image as a data URI   |
+| `wavespeed`   | `POST {url}/chat/completions` | `https://llm.wavespeed.ai/v1` | key from `$WAVESPEED_API_KEY` unless `api_key_env` is set                      |
+| `anthropic`   | `POST {url}/v1/messages`      | `https://api.anthropic.com`   | `max_tokens` (default `4096`); refusals raise `RefusalError`                   |
+| `claude-code` | `claude -p` subprocess        | the `claude` on `PATH`        | `model` is a Claude Code alias (default `sonnet`); `command`, `extra_args`     |
 
 Keys common to every profile:
 
@@ -192,9 +206,16 @@ Official models soften or refuse adult content.\
 it only helps on models that are willing, such as the uncensored `huihui_ai/Qwen3.6-abliterated:35b-a3b` on ollama.\
 A refusal, whether signalled by the API or written as a reply, is raised as `RefusalError`.
 
+### Claude Code
+
+The `claude-code` type runs the Claude Code CLI (`claude -p --model <alias> --output-format json --tools Read --allowedTools Read`) with the preset as its system prompt and hands the image over as a file path;\
+it works from inside a Claude Code session too.\
+Sonnet 5 through this route had the highest accuracy in the maintainer's evaluation, but every call carries 50k to 70k tokens of Claude Code's own context, so it suits a few images at a time, not batches.\
+`provider.last_usage` (and the `usage` field of `--json`) carries `total_cost_usd` and `modelUsage` from the CLI's report.
+
 ### Output Cleanup
 
-Reasoning blocks (`<think>...</think>`), Markdown code fences, "Prompt:"-style headings and wrapping quotes are stripped from the model output, and the result is merged into a single paragraph.
+Reasoning blocks (`<think>...</think>`), Markdown code fences, "Prompt:"-style headings and wrapping quotes are stripped from the model output, and the result is merged into a single paragraph (or normalized as a tag line for `format=tags` presets).
 
 ## Development
 

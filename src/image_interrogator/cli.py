@@ -189,7 +189,7 @@ def main(argv=None):
         except ImageInterrogatorError as e:
             failures.append(value)
             records.append({"image": value, "error": str(e)})
-            prefix = f"{value}: " if len(args.images) > 1 else ""
+            prefix = f"{value}: " if len(args.images) > 1 and value not in str(e) else ""
             print(f"{PROG}: {prefix}{e}", file=sys.stderr)
     if args.json:
         print(json.dumps(records, ensure_ascii=False, indent=2))
