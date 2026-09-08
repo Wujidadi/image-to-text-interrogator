@@ -83,3 +83,54 @@ def test_size_warning(png_bytes):
 def test_describe(png_file, png_bytes):
     assert load_image(png_file).describe() == f"{png_file.resolve()} (image/png, {len(png_bytes)} bytes)"
     assert load_image(png_bytes).describe() == f"<bytes> (image/png, {len(png_bytes)} bytes)"
+
+
+# --- resizing (optional Pillow extra) ---------------------------------------
+
+def test_resize_shrinks_long_side(png_file):
+    from PIL import Image as PILImage
+    from image_interrogator.image import resize_image
+    from conftest import make_png
+    png_file.write_bytes(make_png(40, 20))
+    image = load_image(png_file)
+    resized = resize_image(image, 10)
+    assert resized.path == image.path and resized.media_type == "image/png"
+    with PILImage.open(io.BytesIO(resized.data)) as im:
+        assert im.size == (10, 5)
+    assert any("resized" in w for w in resized.warnings)
+
+
+def test_resize_keeps_small_images(png_bytes):
+    from image_interrogator.image import resize_image
+    image = load_image(png_bytes)
+    assert resize_image(image, 1536) is image
+
+
+def test_resize_keeps_jpeg_and_drops_size_warning(tmp_path):
+    from PIL import Image as PILImage
+    from image_interrogator.image import SIZE_WARNING_BYTES, resize_image
+    buffer = io.BytesIO()
+    PILImage.new("RGB", (30, 10), "red").save(buffer, format="JPEG")
+    image = ImageInput(data=buffer.getvalue(), media_type="image/jpeg",
+                       warnings=("image is 6.0 MB, above the 5 MB limit",))
+    resized = resize_image(image, 15)
+    assert resized.media_type == "image/jpeg"
+    assert not any("5 MB" in w for w in resized.warnings)
+    with PILImage.open(io.BytesIO(resized.data)) as im:
+        assert im.size == (15, 5)
+
+
+def test_resize_without_pillow(monkeypatch, png_bytes):
+    import sys
+    from image_interrogator.image import resize_image
+    monkeypatch.setitem(sys.modules, "PIL", None)
+    monkeypatch.setitem(sys.modules, "PIL.Image", None)
+    with pytest.raises(ImageError, match=r"image-to-text-interrogator\[resize\]"):
+        resize_image(load_image(png_bytes), 10)
+
+
+def test_resize_undecodable(png_bytes):
+    from image_interrogator.image import resize_image
+    image = ImageInput(data=b"\x89PNG\r\n\x1a\n" + b"junk" * 10, media_type="image/png")
+    with pytest.raises(ImageError, match="cannot decode"):
+        resize_image(image, 10)

@@ -311,3 +311,12 @@ def test_cli_no_fallback(isolated_config, monkeypatch, fake, png_file, capsys):
     with pytest.raises(SystemExit) as e:
         main(["-q", "--no-fallback", str(png_file)])
     assert e.value.code == 1 and "a refused" in capsys.readouterr().err
+
+
+def test_max_side_flag(isolated_config, provider, tmp_path, capsys):
+    from conftest import make_png
+    path = tmp_path / "wide.png"
+    path.write_bytes(make_png(40, 20))
+    main(["--max-side", "10", str(path)])
+    assert "resized" in capsys.readouterr().err
+    assert len(provider.calls[0][2].data) < len(path.read_bytes())

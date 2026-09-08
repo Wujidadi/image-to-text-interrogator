@@ -38,6 +38,7 @@ class Config:
     language: str | None = None
     preset_dirs: list = field(default_factory=list)
     fallbacks: list = field(default_factory=list)
+    max_side: int | None = None
     path: Path | None = None
 
     def provider_settings(self, name=None, overrides=None):
@@ -82,4 +83,4 @@ def load_config(path=None):
     preset_dirs = [Path(d).expanduser() for d in data.get("preset_dirs", [])]
     return Config(providers=providers, default_provider=default,
                   language=data.get("language"), preset_dirs=preset_dirs,
-                  fallbacks=fallbacks, path=path)
+                  fallbacks=fallbacks, max_side=data.get("max_side"), path=path)

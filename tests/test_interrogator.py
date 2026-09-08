@@ -175,3 +175,22 @@ model = "c"
     assert [p.model for p in Interrogator.from_config("a", fallbacks=["c"]).fallbacks] == ["c"]
     with pytest.raises(ConfigError, match="unknown provider profile"):
         Interrogator.from_config("a", fallbacks=["nope"])
+
+
+def test_max_side_resizes_before_the_call(isolated_config, fake, tmp_path):
+    from conftest import make_png
+    path = tmp_path / "wide.png"
+    path.write_bytes(make_png(40, 20))
+    provider = fake("a cat")
+    Interrogator(provider, max_side=10).interrogate(path)
+    assert len(provider.calls[0][2].data) < len(path.read_bytes())
+    Interrogator(provider).interrogate(path)
+    assert provider.calls[1][2].data == path.read_bytes()
+
+
+def test_from_config_max_side(isolated_config):
+    isolated_config.write_text("max_side = 1024\n", encoding="utf-8")
+    assert Interrogator.from_config().max_side == 1024
+    assert Interrogator.from_config(max_side=512).max_side == 512
+    isolated_config.write_text("", encoding="utf-8")
+    assert Interrogator.from_config().max_side is None

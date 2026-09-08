@@ -54,6 +54,10 @@ def build_parser():
                              "fallbacks list")
     parser.add_argument("--no-fallback", action="store_true",
                         help="never fall back to another profile")
+    parser.add_argument("--max-side", type=int, metavar="<px>",
+                        help="scale the image down so its longer side is at most <px> "
+                             "before sending it (needs the Pillow extra); overrides the "
+                             "config file's max_side")
     parser.add_argument("--preset-dir", metavar="<dir>", action="append", default=[],
                         help="extra preset directory searched first (repeatable)")
     parser.add_argument("--config", metavar="<file>",
@@ -134,6 +138,9 @@ def process(value, interrogator, args):
     result = interrogator.interrogate_detailed(
         image, preset=args.preset, instruction=args.instruction,
         language=args.language, explicit=args.explicit)
+    for warning in result.image.warnings:
+        if warning.startswith("resized"):
+            print(f"{PROG}: {warning}", file=sys.stderr)
     record["prompt"] = result.text
     record["provider"] = result.provider.describe()
     record["elapsed"] = result.elapsed
@@ -187,7 +194,8 @@ def main(argv=None):
                                                 language=args.language,
                                                 preset_dirs=args.preset_dir,
                                                 config_path=args.config,
-                                                fallbacks=fallbacks, on_fallback=on_fallback)
+                                                fallbacks=fallbacks, on_fallback=on_fallback,
+                                                max_side=args.max_side)
         if args.show_system:
             system, _ = interrogator.prepare(args.preset, args.instruction,
                                              args.language, args.explicit)

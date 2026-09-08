@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from .config import Config, load_config
 from .errors import (ConfigError, ImageError, ImageInterrogatorError, OverloadedError,
                      PresetNotFoundError, ProviderError, RefusalError)
-from .image import ImageInput, load_image
+from .image import ImageInput, load_image, resize_image
 from .postprocess import clean_output, is_refusal, normalize_tags, single_paragraph, to_simplified
 from .presets import DEFAULT_PRESET, Preset, list_presets, load_preset
 from .prompt import DEFAULT_LANGUAGE, LANGUAGE_DIRECTIVES, build_system, build_user
@@ -27,6 +27,7 @@ class Result:
     elapsed: float
     usage: dict | None = None
     attempts: list = field(default_factory=list)
+    image: ImageInput | None = None
 
     def __str__(self):
         return self.text
@@ -38,15 +39,17 @@ class Interrogator:
 
     `language` is the default output language; `preset_dirs` are searched
     before the user and bundled preset directories; `on_fallback(error,
-    next_provider)` is called each time the next provider is tried"""
+    next_provider)` is called each time the next provider is tried;
+    `max_side` scales images down before the call (needs Pillow)"""
 
     def __init__(self, provider, *, language=None, preset_dirs=(), fallbacks=(),
-                 on_fallback=None):
+                 on_fallback=None, max_side=None):
         self.provider = provider
         self.language = language or DEFAULT_LANGUAGE
         self.preset_dirs = list(preset_dirs)
         self.fallbacks = list(fallbacks)
         self.on_fallback = on_fallback
+        self.max_side = max_side
         self._check_language(self.language)
 
     @staticmethod
@@ -57,7 +60,8 @@ class Interrogator:
 
     @classmethod
     def from_config(cls, provider=None, overrides=None, *, language=None,
-                    preset_dirs=(), config_path=None, fallbacks=None, on_fallback=None):
+                    preset_dirs=(), config_path=None, fallbacks=None, on_fallback=None,
+                    max_side=None):
         """Build from the user config file: `provider` names a profile
         (the configured default when None), `overrides` patch its settings.
         Language precedence: argument > config file > en.
@@ -72,7 +76,8 @@ class Interrogator:
                    language=language or config.language,
                    preset_dirs=list(preset_dirs) + config.preset_dirs,
                    fallbacks=[create_provider(config.provider_settings(n)) for n in names],
-                   on_fallback=on_fallback)
+                   on_fallback=on_fallback,
+                   max_side=max_side if max_side is not None else config.max_side)
 
     def prepare(self, preset=None, instruction=None, language=None, explicit=False):
         """Resolve the preset into (system, preset); exposed so callers can
@@ -98,6 +103,8 @@ class Interrogator:
         answered, the elapsed time, its usage report and the errors of the
         providers tried before it"""
         image = load_image(image)
+        if self.max_side:
+            image = resize_image(image, self.max_side)
         language = language or self.language
         system, loaded = self.prepare(preset, instruction, language, explicit)
         started = time.monotonic()
@@ -116,7 +123,7 @@ class Interrogator:
                 continue
             return Result(text=text, provider=provider,
                           elapsed=round(time.monotonic() - started, 2),
-                          usage=provider.last_usage, attempts=attempts)
+                          usage=provider.last_usage, attempts=attempts, image=image)
 
     def _complete(self, provider, system, image, loaded, language):
         raw = provider.complete(system, build_user(), image)
@@ -143,7 +150,7 @@ def interrogate(image, *, preset=None, instruction=None, language=None, explicit
 
 
 __all__ = [
-    "Interrogator", "Result", "FALLBACK_ERRORS", "interrogate", "Config", "load_config", "ImageInput", "load_image",
+    "Interrogator", "Result", "FALLBACK_ERRORS", "interrogate", "Config", "load_config", "ImageInput", "load_image", "resize_image",
     "Provider", "create_provider", "Preset", "list_presets", "load_preset",
     "DEFAULT_PRESET", "DEFAULT_LANGUAGE", "LANGUAGE_DIRECTIVES", "build_system",
     "build_user", "clean_output", "single_paragraph", "is_refusal", "normalize_tags", "to_simplified",
